@@ -1,0 +1,25 @@
+{
+  "name": "extending",
+  "version": "1.0.0",
+  "description": "how to extend jungle",
+  "main": "index.js",
+  "scripts": {
+    "start": "npm run build:live",
+    "build:live": "nodemon --exec ./node_modules/.bin/ts-node -- ./index.ts",
+    "test": "jasmine"
+  },
+  "author": "Space-ED",
+  "license": "ISC",
+  "dependencies": {
+    "@types/node": "^8.0.5",
+    "typestyle": "^1.3.5"
+  },
+  "devDependencies": {
+    "nodemon": "^1.11.0",
+    "ts-loader": "^2.2.1",
+    "ts-node": "^3.1.0",
+    "typescript": "^2.4.1",
+    "typings": "^2.1.1",
+    "webpack": "^3.0.0"
+  }
+}
