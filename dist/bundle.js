@@ -33,6 +33,9 @@
 /******/ 	// expose the module cache
 /******/ 	__webpack_require__.c = installedModules;
 /******/
+/******/ 	// identity function for calling harmony imports with the correct context
+/******/ 	__webpack_require__.i = function(value) { return value; };
+/******/
 /******/ 	// define getter function for harmony exports
 /******/ 	__webpack_require__.d = function(exports, name, getter) {
 /******/ 		if(!__webpack_require__.o(exports, name)) {
@@ -60,7 +63,7 @@
 /******/ 	__webpack_require__.p = "/dist/";
 /******/
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = 29);
+/******/ 	return __webpack_require__(__webpack_require__.s = 30);
 /******/ })
 /************************************************************************/
 /******/ ([
@@ -105,7 +108,262 @@ exports.BasicContact = BasicContact;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const typesplit_1 = __webpack_require__(3);
+var CALL_MODE;
+(function (CALL_MODE) {
+    CALL_MODE[CALL_MODE["PUSH"] = 0] = "PUSH";
+    CALL_MODE[CALL_MODE["GET"] = 1] = "GET";
+    CALL_MODE[CALL_MODE["REQUEST"] = 2] = "REQUEST";
+    CALL_MODE[CALL_MODE["PROXY"] = 3] = "PROXY";
+})(CALL_MODE = exports.CALL_MODE || (exports.CALL_MODE = {}));
+var LINK_FILTERS;
+(function (LINK_FILTERS) {
+    LINK_FILTERS[LINK_FILTERS["PROCEED"] = 0] = "PROCEED";
+    LINK_FILTERS[LINK_FILTERS["DECEED"] = 1] = "DECEED";
+    LINK_FILTERS[LINK_FILTERS["ELSEWHERE"] = 2] = "ELSEWHERE";
+    LINK_FILTERS[LINK_FILTERS["NONE"] = 3] = "NONE";
+})(LINK_FILTERS = exports.LINK_FILTERS || (exports.LINK_FILTERS = {}));
+exports.FreePolicy = {
+    fussy: false,
+    allowAddition: true,
+    allowRemoval: true
+};
+
+
+/***/ }),
+/* 2 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+function __export(m) {
+    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
+}
+Object.defineProperty(exports, "__esModule", { value: true });
+__export(__webpack_require__(20));
+__export(__webpack_require__(36));
+__export(__webpack_require__(7));
+__export(__webpack_require__(34));
+__export(__webpack_require__(33));
+__export(__webpack_require__(35));
+__export(__webpack_require__(32));
+__export(__webpack_require__(0));
+__export(__webpack_require__(17));
+
+
+/***/ }),
+/* 3 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const I = __webpack_require__(1);
+const base_1 = __webpack_require__(0);
+const callout_1 = __webpack_require__(4);
+const Debug = __webpack_require__(13);
+const junction_1 = __webpack_require__(24);
+class CallIn extends base_1.BasicContact {
+    constructor(spec) {
+        super();
+        this.spec = spec;
+        this.symmetric = false;
+        this.invertable = true;
+        this.put = (data, tracking) => {
+            let crumb;
+            if (this.spec.tracking && tracking !== undefined) {
+                crumb = tracking.drop("CallIn Contact")
+                    .with(data)
+                    .at("contact label: " + this.spec.label);
+            }
+            if (this.partner !== undefined && this.partner.emit !== undefined) {
+                if (crumb) {
+                    return this.partner.emit(data, crumb);
+                }
+                else {
+                    return this.partner.emit(data);
+                }
+            }
+            else {
+                if (tracking) {
+                    tracking.raise("CallIn contact has no corresponding CallOut with emit defined");
+                }
+            }
+        };
+    }
+    invert() {
+        return super.invert();
+    }
+    createPartner() {
+        return new callout_1.CallOut(this.spec);
+    }
+    inject(into, key) {
+        this.hook = into;
+        if (this.spec.mode == I.CALL_MODE.PUSH) {
+            Object.defineProperty(into, key, {
+                set: (value) => {
+                    let crumb;
+                    if (this.spec.tracking) {
+                        crumb = new Debug.Crumb("Context injection Push Beginning");
+                    }
+                    this.put(value, crumb);
+                    this.spec.default = value;
+                }, get: () => {
+                    return this.spec.default;
+                },
+                enumerable: true
+            });
+        }
+        else if (this.spec.mode == I.CALL_MODE.GET) {
+            Object.defineProperty(into, key, {
+                get: () => {
+                    let crumb;
+                    if (this.spec.tracking) {
+                        crumb = new Debug.Crumb("Context injection get Beginning");
+                    }
+                    let promised = this.put(undefined, crumb);
+                    if (this.spec.syncOnly) {
+                        let zalgo = promised.realize();
+                        if (zalgo instanceof junction_1.Junction) {
+                            zalgo.then((result) => {
+                                this.spec.default = result;
+                            });
+                            return this.spec.default;
+                        }
+                        else {
+                            return zalgo;
+                        }
+                    }
+                    else {
+                        return promised;
+                    }
+                },
+                enumerable: true
+            });
+        }
+        else if (this.spec.mode == I.CALL_MODE.REQUEST) {
+            Object.defineProperty(into, key, {
+                get: () => {
+                    return this.put.bind(this);
+                },
+                enumerable: true
+            });
+        }
+    }
+    retract(context, key) {
+        delete context.key;
+    }
+}
+exports.CallIn = CallIn;
+
+
+/***/ }),
+/* 4 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const I = __webpack_require__(1);
+const base_1 = __webpack_require__(0);
+const callin_1 = __webpack_require__(3);
+class CallOut extends base_1.BasicContact {
+    constructor(spec) {
+        super();
+        this.spec = spec;
+        this.invertable = true;
+        this.symmetric = false;
+        if (spec.mode !== I.CALL_MODE.PROXY) {
+            this.hidden = true;
+        }
+    }
+    invert() {
+        return super.invert();
+    }
+    createPartner() {
+        return new callin_1.CallIn(this.spec);
+    }
+    inject(into, key) {
+        let _spec = this.spec;
+        if (_spec.mode == I.CALL_MODE.PUSH) {
+            if (_spec.hook instanceof Function) {
+                this.emit = (inp, crumb) => {
+                    if (crumb && _spec.tracking) {
+                        let end = crumb.drop("Hook Call Terminal")
+                            .with(inp)
+                            .at(key);
+                    }
+                    _spec.hook.call(into, inp, crumb);
+                };
+            }
+            else {
+                into[key] = _spec.default;
+                this.emit = (inp, crumb) => {
+                    if (crumb && _spec.tracking) {
+                        let end = crumb.drop("Value Deposit Hook")
+                            .with(inp)
+                            .at(key);
+                    }
+                    into[key] = inp;
+                };
+            }
+        }
+        else if (_spec.mode == I.CALL_MODE.GET) {
+            into[key] = _spec.default;
+            this.emit = (inp, crumb) => {
+                let gotten = into[key];
+                if (crumb && _spec.tracking) {
+                    crumb.drop("Synchronous Value Retrieval(Get) Hook")
+                        .with(inp)
+                        .at(key)
+                        .as(gotten);
+                }
+                return gotten;
+            };
+        }
+        else if (_spec.mode == I.CALL_MODE.REQUEST) {
+            this.emit = (inp, crumb) => {
+                if (crumb && _spec.tracking) {
+                    crumb.drop("Function Hook")
+                        .with(inp)
+                        .at(key);
+                }
+                return _spec.hook.call(into, inp, crumb);
+            };
+        }
+    }
+    retract(context, key) {
+    }
+}
+exports.CallOut = CallOut;
+
+
+/***/ }),
+/* 5 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+function __export(m) {
+    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
+}
+Object.defineProperty(exports, "__esModule", { value: true });
+__export(__webpack_require__(41));
+__export(__webpack_require__(6));
+const debug = __webpack_require__(13);
+exports.Debug = debug;
+__export(__webpack_require__(24));
+__export(__webpack_require__(25));
+__export(__webpack_require__(28));
+
+
+/***/ }),
+/* 6 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const typesplit_1 = __webpack_require__(8);
 function isPrimative(thing) {
     return thing == undefined || typeof (thing) !== 'object';
 }
@@ -219,32 +477,92 @@ exports.isDeepReplicaThrow = isDeepReplicaThrow;
 
 
 /***/ }),
-/* 2 */
+/* 7 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
-function __export(m) {
-    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
-}
 Object.defineProperty(exports, "__esModule", { value: true });
-__export(__webpack_require__(31));
-__export(__webpack_require__(1));
-const debug = __webpack_require__(18);
-exports.Debug = debug;
-__export(__webpack_require__(20));
-__export(__webpack_require__(17));
-__export(__webpack_require__(19));
+class BaseMedium {
+    constructor(spec) {
+        this.exclusive = false;
+        this.multiA = true;
+        this.multiB = true;
+        this.reflex = true;
+        this.matrix = { to: {}, from: {} };
+        this.exposed = spec.exposed || {};
+        this.symmetric = this.typeA === this.typeB;
+        this.typeB = this.symmetric ? undefined : this.typeB;
+    }
+    suppose(supposedLink) {
+        if (this.check(supposedLink)) {
+            let { tokenA, tokenB, contactA, contactB } = supposedLink;
+            if (this.matrix.to[tokenA] === undefined) {
+                this.matrix.to[tokenA] = {};
+                this.inductA(tokenA, contactA);
+            }
+            if (this.matrix.from[tokenB] === undefined) {
+                this.matrix.from[tokenB] = {};
+                this.inductB(tokenB, contactB);
+            }
+            this.matrix.to[tokenA][tokenB] = supposedLink;
+            this.matrix.from[tokenB][tokenA] = supposedLink;
+            this.connect(supposedLink);
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+    hasToken(token) {
+        return token in this.matrix.to || token in this.matrix.from;
+    }
+    hasLink(link) {
+        if (link.tokenA in this.matrix.to && this.matrix.to[link.tokenA][link.tokenB] !== undefined) {
+            return this.matrix.to[link.tokenA][link.tokenB] === this.matrix.from[link.tokenB][link.tokenA];
+        }
+    }
+    hasClaim(link) {
+        return this.exclusive && (link.tokenA in this.matrix.to || link.tokenB in this.matrix.from);
+    }
+    breakA(token, a) {
+        let connections = this.matrix.to[token];
+        for (let other in connections) {
+            this.disconnect(connections[other]);
+        }
+    }
+    breakB(token, b) {
+        let connections = this.matrix.from[token];
+        for (let other in connections) {
+            this.disconnect(connections[other]);
+        }
+    }
+    check(link) {
+        return link.contactA instanceof this.typeA && link.contactB instanceof this.typeB
+            &&
+                (this.multiA || (this.matrix.to[link.tokenA] == undefined) || this.matrix.to[link.tokenA][link.tokenB] === undefined)
+            &&
+                (this.multiB || (this.matrix.from[link.tokenB] == undefined) || this.matrix.from[link.tokenB][link.tokenA] === undefined);
+    }
+    ;
+    disconnect(link) {
+        delete this.matrix.to[link.tokenA][link.tokenB];
+        delete this.matrix.from[link.tokenB][link.tokenA];
+    }
+    ;
+}
+exports.BaseMedium = BaseMedium;
+exports.mediaConstructors = {};
 
 
 /***/ }),
-/* 3 */
+/* 8 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const checks_1 = __webpack_require__(1);
+const checks_1 = __webpack_require__(6);
 function identity(x) {
     return x;
 }
@@ -351,7 +669,7 @@ exports.typeCaseSplitM = typeCaseSplitM;
 
 
 /***/ }),
-/* 4 */
+/* 9 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -360,243 +678,124 @@ function __export(m) {
     for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
 }
 Object.defineProperty(exports, "__esModule", { value: true });
-__export(__webpack_require__(21));
-__export(__webpack_require__(32));
-__export(__webpack_require__(22));
-__export(__webpack_require__(33));
+__export(__webpack_require__(31));
+__export(__webpack_require__(10));
 __export(__webpack_require__(11));
-__export(__webpack_require__(34));
-__export(__webpack_require__(35));
-__export(__webpack_require__(7));
-__export(__webpack_require__(6));
-__export(__webpack_require__(0));
-__export(__webpack_require__(23));
 
 
 /***/ }),
-/* 5 */
+/* 10 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-var CALL_MODE;
-(function (CALL_MODE) {
-    CALL_MODE[CALL_MODE["PUSH"] = 0] = "PUSH";
-    CALL_MODE[CALL_MODE["GET"] = 1] = "GET";
-    CALL_MODE[CALL_MODE["REQUEST"] = 2] = "REQUEST";
-    CALL_MODE[CALL_MODE["PROXY"] = 3] = "PROXY";
-})(CALL_MODE = exports.CALL_MODE || (exports.CALL_MODE = {}));
-var LINK_FILTERS;
-(function (LINK_FILTERS) {
-    LINK_FILTERS[LINK_FILTERS["PROCEED"] = 0] = "PROCEED";
-    LINK_FILTERS[LINK_FILTERS["DECEED"] = 1] = "DECEED";
-    LINK_FILTERS[LINK_FILTERS["ELSEWHERE"] = 2] = "ELSEWHERE";
-    LINK_FILTERS[LINK_FILTERS["NONE"] = 3] = "NONE";
-})(LINK_FILTERS = exports.LINK_FILTERS || (exports.LINK_FILTERS = {}));
-exports.FreePolicy = {
-    fussy: false,
-    allowAddition: true,
-    allowRemoval: true
-};
-
-
-/***/ }),
-/* 6 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const I = __webpack_require__(5);
-const base_1 = __webpack_require__(0);
-const callin_1 = __webpack_require__(7);
-class CallOut extends base_1.BasicContact {
+const domain_1 = __webpack_require__(11);
+const Util = __webpack_require__(5);
+const hierarchical_1 = __webpack_require__(15);
+class Construct {
     constructor(spec) {
-        super();
-        this.spec = spec;
-        this.invertable = true;
-        this.symmetric = false;
-        if (spec.mode !== I.CALL_MODE.PROXY) {
-            this.hidden = true;
+        this.cache = this.ensureObject(spec);
+        this.cache.basis = this.cache.basis || 'object';
+        this.alive = false;
+    }
+    ensureObject(spec) {
+        if (spec === undefined) {
+            return {};
         }
-    }
-    invert() {
-        return super.invert();
-    }
-    createPartner() {
-        return new callin_1.CallIn(this.spec);
-    }
-    inject(into, key) {
-        let _spec = this.spec;
-        if (_spec.mode == I.CALL_MODE.PUSH) {
-            if (_spec.hook instanceof Function) {
-                this.emit = (inp, crumb) => {
-                    if (crumb && _spec.tracking) {
-                        let end = crumb.drop("Hook Call Terminal")
-                            .with(inp)
-                            .at(key);
-                    }
-                    _spec.hook.call(into, inp, crumb);
-                };
-            }
-            else {
-                into[key] = _spec.default;
-                this.emit = (inp, crumb) => {
-                    if (crumb && _spec.tracking) {
-                        let end = crumb.drop("Value Deposit Hook")
-                            .with(inp)
-                            .at(key);
-                    }
-                    into[key] = inp;
-                };
-            }
-        }
-        else if (_spec.mode == I.CALL_MODE.GET) {
-            into[key] = _spec.default;
-            this.emit = (inp, crumb) => {
-                let gotten = into[key];
-                if (crumb && _spec.tracking) {
-                    crumb.drop("Synchronous Value Retrieval(Get) Hook")
-                        .with(inp)
-                        .at(key)
-                        .as(gotten);
-                }
-                return gotten;
+        else if (Util.isVanillaArray(spec)) {
+            return {
+                basis: 'array',
+                anon: spec
             };
         }
-        else if (_spec.mode == I.CALL_MODE.REQUEST) {
-            this.emit = (inp, crumb) => {
-                if (crumb && _spec.tracking) {
-                    crumb.drop("Function Hook")
-                        .with(inp)
-                        .at(key);
-                }
-                return _spec.hook.call(into, inp, crumb);
-            };
+        else if (Util.isVanillaObject(spec)) {
+            return spec;
+        }
+        else {
+            throw new Error("Invalid Specification for base Construct, must be object or undefined");
         }
     }
-    retract(context, key) {
+    applyForm(form = {}) {
+        this.primeTractor = form.prime;
+        this.disposeTractor = form.dispose;
+    }
+    clearForm(form = {}) {
+        this.primeTractor = undefined;
+        this.disposeTractor = undefined;
+    }
+    attach(host, alias) {
+        this.host = host;
+        this.alias = alias;
+    }
+    detach(host, alias) {
+        this.host = undefined;
+        this.alias = undefined;
+    }
+    prime(providedDomain) {
+        if (providedDomain instanceof domain_1.Domain) {
+            this.domain = providedDomain;
+        }
+        else if (providedDomain === undefined) {
+            this.domain = Construct.DefaultDomain;
+        }
+        else {
+            throw new Error(`The provided domain must be Domain type, or undefined`);
+        }
+        if (this.cache.domain !== undefined) {
+            if (typeof this.cache.domain === 'string') {
+                this.domain = Construct.DefaultDomain.locateDomain(this.cache.domain);
+            }
+            else if (this.cache.domain instanceof domain_1.Domain) {
+                this.domain = this.cache.domain;
+            }
+        }
+        this.alive = true;
+        this.applyForm(this.cache.form);
+        if (this.primeTractor) {
+            this.primeTractor.call(this.nucleus);
+        }
+    }
+    ;
+    dispose() {
+        if (this.disposeTractor) {
+            this.disposeTractor.call(this.nucleus);
+        }
+        this.alive = false;
+    }
+    extract() {
+        return this.cache;
+    }
+    patch(patch) {
+        if (this.alive && !patch.form != undefined) {
+            this.dispose();
+            this.patch(patch);
+            this.prime(this.domain);
+        }
+        else {
+            this.cache = hierarchical_1.deepMeldF()(this.cache, patch);
+        }
+    }
+    extend(patch) {
+        let ext = Util.B()
+            .init(this.extract())
+            .merge(patch)
+            .dump();
+        return this.domain.recover(ext);
     }
 }
-exports.CallOut = CallOut;
+exports.Construct = Construct;
 
 
 /***/ }),
-/* 7 */
+/* 11 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const I = __webpack_require__(5);
-const base_1 = __webpack_require__(0);
-const callout_1 = __webpack_require__(6);
-const Debug = __webpack_require__(18);
-const junction_1 = __webpack_require__(20);
-class CallIn extends base_1.BasicContact {
-    constructor(spec) {
-        super();
-        this.spec = spec;
-        this.symmetric = false;
-        this.invertable = true;
-        this.put = (data, tracking) => {
-            let crumb;
-            if (this.spec.tracking && tracking !== undefined) {
-                crumb = tracking.drop("CallIn Contact")
-                    .with(data)
-                    .at("contact label: " + this.spec.label);
-            }
-            if (this.partner !== undefined && this.partner.emit !== undefined) {
-                if (crumb) {
-                    return this.partner.emit(data, crumb);
-                }
-                else {
-                    return this.partner.emit(data);
-                }
-            }
-            else {
-                if (tracking) {
-                    tracking.raise("CallIn contact has no corresponding CallOut with emit defined");
-                }
-            }
-        };
-    }
-    invert() {
-        return super.invert();
-    }
-    createPartner() {
-        return new callout_1.CallOut(this.spec);
-    }
-    inject(into, key) {
-        this.hook = into;
-        if (this.spec.mode == I.CALL_MODE.PUSH) {
-            Object.defineProperty(into, key, {
-                set: (value) => {
-                    let crumb;
-                    if (this.spec.tracking) {
-                        crumb = new Debug.Crumb("Context injection Push Beginning");
-                    }
-                    this.put(value, crumb);
-                    this.spec.default = value;
-                }, get: () => {
-                    return this.spec.default;
-                },
-                enumerable: true
-            });
-        }
-        else if (this.spec.mode == I.CALL_MODE.GET) {
-            Object.defineProperty(into, key, {
-                get: () => {
-                    let crumb;
-                    if (this.spec.tracking) {
-                        crumb = new Debug.Crumb("Context injection get Beginning");
-                    }
-                    let promised = this.put(undefined, crumb);
-                    if (this.spec.syncOnly) {
-                        let zalgo = promised.realize();
-                        if (zalgo instanceof junction_1.Junction) {
-                            zalgo.then((result) => {
-                                this.spec.default = result;
-                            });
-                            return this.spec.default;
-                        }
-                        else {
-                            return zalgo;
-                        }
-                    }
-                    else {
-                        return promised;
-                    }
-                },
-                enumerable: true
-            });
-        }
-        else if (this.spec.mode == I.CALL_MODE.REQUEST) {
-            Object.defineProperty(into, key, {
-                get: () => {
-                    return this.put.bind(this);
-                },
-                enumerable: true
-            });
-        }
-    }
-    retract(context, key) {
-        delete context.key;
-    }
-}
-exports.CallIn = CallIn;
-
-
-/***/ }),
-/* 8 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const hierarchical_1 = __webpack_require__(9);
-const designator_1 = __webpack_require__(10);
+const hierarchical_1 = __webpack_require__(15);
+const designator_1 = __webpack_require__(14);
 class Domain {
     constructor(init = {}, isolated = false) {
         this.isolated = isolated;
@@ -662,7 +861,6 @@ class Domain {
         let nresult = Object.keys(result).length;
         if (nresult === 0) {
             if (this.parent === undefined) {
-                console.log("Domain:", this);
                 throw new Error(`Unable to locate the basis '${basis}' is not registered to the Domain`);
             }
             else {
@@ -731,69 +929,241 @@ exports.Domain = Domain;
 
 
 /***/ }),
-/* 9 */
+/* 12 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const f = __webpack_require__(15);
-const op = __webpack_require__(16);
-function mustTerminate(obj1, obj2, q) {
-    obj1 instanceof Object;
-}
-function deepMeldF(terminator = f.terminate.isPrimative, reduce = f.reduce.latest) {
-    function recur(obj1, obj2, q) {
-        if (terminator(obj1, obj2, q)) {
-            return reduce(obj1, obj2, q);
-        }
-        else {
-            return op.meld(recur)(obj1, obj2);
-        }
+const construct_1 = __webpack_require__(10);
+class CellAccessory extends construct_1.Construct {
+    attach(host, alias) {
+        super.attach(host, alias);
     }
-    return recur;
-}
-exports.deepMeldF = deepMeldF;
-function deepMaskF(terminator, reduce) {
-    function recur(obj1, obj2, q) {
-        return op.mask((innerObj1, innerObj2, q) => {
-            if (terminator(innerObj1, innerObj2, q)) {
-                return reduce(innerObj1, innerObj2, q);
-            }
-            else {
-                return recur(innerObj1, innerObj2, q);
-            }
-        })(obj1, obj2);
+    detach(host, alias) {
+        super.detach(host, alias);
     }
-    return recur;
-}
-exports.deepMaskF = deepMaskF;
-function deepInvertF(terminator, negater) {
-    function recur(obj, q) {
-        return op.invert((innerObj, k) => {
-            if (terminator(innerObj, undefined, k)) {
-                return negater(innerObj, k);
-            }
-            else {
-                return recur(innerObj, k);
-            }
-        })(obj);
+    prime(domain) {
+        super.prime(domain);
     }
-    return recur;
+    ;
+    dispose() {
+        return this.cache;
+    }
+    extract() {
+        return this.cache;
+    }
+    patch(patch) {
+    }
 }
-exports.deepInvertF = deepInvertF;
+exports.CellAccessory = CellAccessory;
 
 
 /***/ }),
-/* 10 */
+/* 13 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const hierarchical_1 = __webpack_require__(9);
-const operations_1 = __webpack_require__(16);
-const f = __webpack_require__(15);
+const checks_1 = __webpack_require__(6);
+const transforms_1 = __webpack_require__(28);
+function dumpToDepthF(maxdepth, indentSym = "  ") {
+    let recur = function (depth, indentation, item) {
+        let outstr = "\n";
+        if (checks_1.isPrimative(item) || depth <= 0) {
+            outstr = String(item);
+        }
+        else if (item instanceof Array) {
+            outstr = "[\n";
+            item.forEach((item) => { outstr += (indentation + recur(depth - 1, indentation + indentSym, item) + '\n'); });
+            outstr += "\n]";
+        }
+        else if (item instanceof Object) {
+            outstr = "{\n";
+            for (let k in item) {
+                outstr += (indentation + indentSym + k + ': ' + recur(depth - 1, indentation + indentSym, item[k]) + '\n');
+            }
+            outstr += "\n" + indentation + "}";
+        }
+        return outstr;
+    };
+    return (x) => {
+        return recur(maxdepth, "", x);
+    };
+}
+exports.dumpToDepthF = dumpToDepthF;
+class JungleError {
+    constructor(message, fileName, lineNumber) {
+        this.message = message;
+        this.fileName = fileName;
+        this.lineNumber = lineNumber;
+        var err = new Error();
+    }
+}
+exports.JungleError = JungleError;
+class Crumb {
+    constructor(label) {
+        this.label = label;
+        this.raised = false;
+        if (label in Crumb.customOptions) {
+            this.setOptions(Crumb.customOptions[label]);
+        }
+        else {
+            this.options = Crumb.defaultOptions;
+        }
+    }
+    setOptions(optionObj) {
+        if (Crumb.defaultOptions.debug instanceof Array) {
+            if (Crumb.defaultOptions.debug.indexOf(this.label) !== -1) {
+                (Crumb.customOptions[this.label] = Crumb.customOptions[this.label] || { debug: true }).debug = true;
+            }
+        }
+        this.options = transforms_1.melder(Crumb.defaultOptions, optionObj);
+    }
+    drop(label) {
+        let crumb = new Crumb(label);
+        crumb.previous = this;
+        return crumb;
+    }
+    excursion(label, callback) {
+        let catcher = this.drop(label)
+            .catch((crumback) => {
+            this.raise(`
+Excursion Failure: ${crumback.message}
+
+While Attempting:
+${crumback.describe()}
+`);
+        });
+        try {
+            callback(catcher);
+        }
+        catch (e) {
+            catcher.raise(e);
+        }
+    }
+    at(position) {
+        if (this.options.debug) {
+            this.position = (this.options.at || this.options.format)(position);
+            if (this.options.log !== undefined) {
+                let logmsg = (`[${this.label}] at: ${this.position}`);
+                this.options.log.log(logmsg);
+            }
+        }
+        return this;
+    }
+    in(location) {
+        if (this.options.debug) {
+            this.location = (this.options.within || this.options.format)(location);
+            if (this.options.log !== undefined) {
+                let logmsg = (`[${this.label}] in: ${this.location}`);
+                this.options.log.log(logmsg);
+            }
+        }
+        return this;
+    }
+    as(situation) {
+        if (this.options.debug) {
+            this.situation = (this.options.as || this.options.format)(situation);
+            if (this.options.log !== undefined) {
+                let logmsg = (`[${this.label}] as: ${this.situation}`);
+                this.options.log.log(logmsg);
+            }
+        }
+        return this;
+    }
+    with(data) {
+        if (this.options.debug) {
+            this.data = (this.options.with || this.options.format)(data);
+            if (this.options.log !== undefined) {
+                let logmsg = (`[${this.label}] with: ${this.data}`);
+                this.options.log.log(logmsg);
+            }
+        }
+        return this;
+    }
+    dump() {
+        return `
+${this.message !== undefined ? `Error: ${this.message}` : ''}
+
+Crumb Trail(most recent at top):
+${this.traceback(this.options.traceDepth)}\
+        `;
+    }
+    traceback(depth = -1) {
+        if (this.previous !== undefined && (depth > 0 || depth === -1)) {
+            return `
+${this.describe()}
+|
+${this.previous.traceback(depth === -1 ? depth : depth - 1)}
+`;
+        }
+        else {
+            return this.describe();
+        }
+    }
+    describe() {
+        return `\
+* ${this.options.header}: ${this.label}\
+${this.position !== undefined ? `\n|    at stage: ${this.position}` : ''}\
+${this.location !== undefined ? `\n|    within location: ${this.location}` : ''}\
+${this.situation !== undefined ? `\n|    as situation: ${this.situation}` : ''}\
+${this.data !== undefined ? `\n|    with data: ${this.data}` : ''}\
+`;
+    }
+    catch(callback) {
+        this.catchCallback = callback;
+        return this;
+    }
+    raise(error) {
+        if (this.catchCallback && !this.raised) {
+            this.raised = true;
+            this.message = error;
+            this.catchCallback(this);
+        }
+        else {
+            this.message = error;
+            throw this.dump();
+        }
+    }
+    deflect(exception) {
+        if (this.previous) {
+            this.previous.raise(`
+Deflected:
+from: ${this.label}
+message: ${exception}`);
+        }
+        else {
+            this.raise(exception);
+        }
+    }
+}
+Crumb.defaultOptions = {
+    header: "Crumb",
+    traceDepth: -1,
+    debug: false,
+    log: console,
+    format: (x) => { return x; },
+    with: undefined,
+    at: undefined,
+    within: undefined,
+    as: undefined,
+};
+Crumb.customOptions = {};
+exports.Crumb = Crumb;
+
+
+/***/ }),
+/* 14 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const hierarchical_1 = __webpack_require__(15);
+const operations_1 = __webpack_require__(26);
+const f = __webpack_require__(27);
 exports.DesignatorRegExp = /^((?:(?:\w+|\*{1,2})(?:\.(?:\w+|\*{1,2}))*))?\:(\w+|\*|\$)$/;
 function regexifyDesignationTerm(term) {
     if (term == '*') {
@@ -1039,293 +1409,57 @@ exports.Designator = Designator;
 
 
 /***/ }),
-/* 11 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-class BaseMedium {
-    constructor(spec) {
-        this.exclusive = false;
-        this.multiA = true;
-        this.multiB = true;
-        this.matrix = { to: {}, from: {}, sym: {} };
-        this.exposed = spec.exposed || {};
-    }
-    suppose(supposedLink) {
-        let { tokenA, tokenB, contactA, contactB } = supposedLink;
-        if (this.check(supposedLink)) {
-            if (this.matrix.to[tokenA] === undefined) {
-                this.matrix.to[tokenA] = {};
-                this.inductA(tokenA, contactA);
-            }
-            if (this.matrix.from[tokenB] === undefined) {
-                this.matrix.from[tokenB] = {};
-                this.inductB(tokenB, contactB);
-            }
-            this.matrix.to[tokenA][tokenB] = supposedLink;
-            this.matrix.from[tokenB][tokenA] = supposedLink;
-            this.connect(supposedLink);
-            return true;
-        }
-        else {
-            return false;
-        }
-    }
-    hasToken(token) {
-        return token in this.matrix.to || token in this.matrix.from || token in this.matrix.sym;
-    }
-    hasLink(link) {
-        if (link.directed) {
-            if (link.tokenA in this.matrix.to && this.matrix.to[link.tokenA][link.tokenB] !== undefined) {
-                return this.matrix.to[link.tokenA][link.tokenB] === this.matrix.from[link.tokenB][link.tokenA];
-            }
-            else {
-                return false;
-            }
-        }
-        else {
-            if (link.tokenA in this.matrix.sym) {
-                return this.matrix.sym[link.tokenA][link.tokenB] === this.matrix.from[link.tokenB][link.tokenA];
-            }
-            else {
-                return false;
-            }
-        }
-    }
-    hasClaim(link) {
-        return this.exclusive && (link.directed && (link.tokenA in this.matrix.to || link.tokenB in this.matrix.from))
-            || (!link.directed && link.tokenA in this.matrix.sym);
-    }
-    breakA(token, a) {
-        let connections = this.matrix.to[token];
-        for (let other in connections) {
-            this.disconnect(connections[other]);
-        }
-    }
-    breakB(token, b) {
-        let connections = this.matrix.from[token];
-        for (let other in connections) {
-            this.disconnect(connections[other]);
-        }
-    }
-    check(link) {
-        if (link.directed) {
-            return (this.multiA || (this.matrix.to[link.tokenA] == undefined) || this.matrix.to[link.tokenA][link.tokenB] === undefined) &&
-                (this.multiB || (this.matrix.from[link.tokenB] == undefined) || this.matrix.from[link.tokenB][link.tokenA] === undefined) &&
-                link.contactA instanceof this.typeA && link.contactB instanceof this.typeB;
-        }
-        else {
-            return (this.multiA || this.matrix.sym[link.tokenA][link.tokenB] === undefined) &&
-                (this.multiB || this.matrix.sym[link.tokenB][link.tokenA] === undefined);
-        }
-    }
-    ;
-    disconnect(link) {
-        if (link.directed) {
-            delete this.matrix.to[link.tokenA][link.tokenB];
-            delete this.matrix.from[link.tokenB][link.tokenA];
-        }
-    }
-    ;
-}
-exports.BaseMedium = BaseMedium;
-exports.mediaConstructors = {};
-
-
-/***/ }),
-/* 12 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const construct_1 = __webpack_require__(13);
-class CellAccessory extends construct_1.Construct {
-    attach(host, alias) {
-        super.attach(host, alias);
-    }
-    detach(host, alias) {
-        super.detach(host, alias);
-    }
-    prime(domain) {
-        super.prime(domain);
-    }
-    ;
-    dispose() {
-        return this.cache;
-    }
-    extract() {
-        return this.cache;
-    }
-    patch(patch) {
-    }
-}
-exports.CellAccessory = CellAccessory;
-
-
-/***/ }),
-/* 13 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const domain_1 = __webpack_require__(8);
-const Util = __webpack_require__(2);
-const hierarchical_1 = __webpack_require__(9);
-class Construct {
-    constructor(spec) {
-        this.cache = this.ensureObject(spec);
-        this.cache.basis = this.cache.basis || 'object';
-        this.alive = false;
-    }
-    ensureObject(spec) {
-        if (spec === undefined) {
-            return {};
-        }
-        else if (Util.isVanillaArray(spec)) {
-            return {
-                basis: 'array',
-                anon: spec
-            };
-        }
-        else if (Util.isVanillaObject(spec)) {
-            return spec;
-        }
-        else {
-            throw new Error("Invalid Specification for base Construct, must be object or undefined");
-        }
-    }
-    applyForm(form = {}) {
-        this.primeTractor = form.prime;
-        this.disposeTractor = form.dispose;
-    }
-    clearForm(form = {}) {
-        this.primeTractor = undefined;
-        this.disposeTractor = undefined;
-    }
-    attach(anchor, alias) {
-        this.anchor = anchor;
-        this.alias = alias;
-    }
-    detach(anchor, alias) {
-        this.anchor = undefined;
-        this.alias = undefined;
-    }
-    prime(providedDomain) {
-        if (providedDomain instanceof domain_1.Domain) {
-            this.domain = providedDomain;
-        }
-        else if (providedDomain === undefined) {
-            this.domain = Construct.DefaultDomain;
-        }
-        else {
-            throw new Error(`The provided domain must be Domain type, or undefined`);
-        }
-        if (this.cache.domain !== undefined) {
-            if (typeof this.cache.domain === 'string') {
-                this.domain = this.cache.domain.locateDomain(this.cache.domain);
-            }
-            else if (this.cache.domain instanceof domain_1.Domain) {
-                this.domain = this.cache.domain;
-            }
-        }
-        this.alive = true;
-        this.applyForm(this.cache.form);
-        if (this.primeTractor) {
-            this.primeTractor.call(this.nucleus);
-        }
-    }
-    ;
-    dispose() {
-        if (this.disposeTractor) {
-            this.disposeTractor.call(this.nucleus);
-        }
-        this.alive = false;
-    }
-    extract() {
-        return this.cache;
-    }
-    patch(patch) {
-        if (this.alive && !patch.form != undefined) {
-            this.dispose();
-            this.patch(patch);
-            this.prime(this.domain);
-        }
-        else {
-            this.cache = hierarchical_1.deepMeldF()(this.cache, patch);
-        }
-    }
-    extend(patch) {
-        let ext = Util.B()
-            .init(this.extract())
-            .merge(patch)
-            .dump();
-        return this.domain.recover(ext);
-    }
-}
-exports.Construct = Construct;
-
-
-/***/ }),
-/* 14 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-function __export(m) {
-    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
-}
-Object.defineProperty(exports, "__esModule", { value: true });
-__export(__webpack_require__(37));
-__export(__webpack_require__(13));
-__export(__webpack_require__(8));
-
-
-/***/ }),
 /* 15 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-var map;
-(function (map) {
-    function identity(x) {
-        return x;
+const f = __webpack_require__(27);
+const op = __webpack_require__(26);
+function mustTerminate(obj1, obj2, q) {
+    obj1 instanceof Object;
+}
+function deepMeldF(terminator = f.terminate.isPrimative, reduce = f.reduce.latest) {
+    function recur(obj1, obj2, q) {
+        if (terminator(obj1, obj2, q)) {
+            return reduce(obj1, obj2, q);
+        }
+        else {
+            return op.meld(recur)(obj1, obj2);
+        }
     }
-    map.identity = identity;
-})(map = exports.map || (exports.map = {}));
-var reduce;
-(function (reduce) {
-    function latest(a, b) {
-        return b;
+    return recur;
+}
+exports.deepMeldF = deepMeldF;
+function deepMaskF(terminator, reduce) {
+    function recur(obj1, obj2, q) {
+        return op.mask((innerObj1, innerObj2, q) => {
+            if (terminator(innerObj1, innerObj2, q)) {
+                return reduce(innerObj1, innerObj2, q);
+            }
+            else {
+                return recur(innerObj1, innerObj2, q);
+            }
+        })(obj1, obj2);
     }
-    reduce.latest = latest;
-})(reduce = exports.reduce || (exports.reduce = {}));
-var scan;
-(function (scan) {
-    function enumerable(obj) {
-        return Object.keys(obj);
+    return recur;
+}
+exports.deepMaskF = deepMaskF;
+function deepInvertF(terminator, negater) {
+    function recur(obj, q) {
+        return op.invert((innerObj, k) => {
+            if (terminator(innerObj, undefined, k)) {
+                return negater(innerObj, k);
+            }
+            else {
+                return recur(innerObj, k);
+            }
+        })(obj);
     }
-    scan.enumerable = enumerable;
-})(scan = exports.scan || (exports.scan = {}));
-var terminate;
-(function (terminate) {
-    function isPrimative(test, obj2, key) {
-        return !(test instanceof Object);
-    }
-    terminate.isPrimative = isPrimative;
-})(terminate = exports.terminate || (exports.terminate = {}));
-var negate;
-(function (negate) {
-    function existential(some) {
-        return Symbol.for("delete");
-    }
-    negate.existential = existential;
-})(negate = exports.negate || (exports.negate = {}));
+    return recur;
+}
+exports.deepInvertF = deepInvertF;
 
 
 /***/ }),
@@ -1335,58 +1469,42 @@ var negate;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-function meld(reduce) {
-    return function (obj1, obj2) {
-        let melded = {};
-        let keys1 = Object.keys(obj1);
-        let keys2 = Object.keys(obj2);
-        for (let k of keys1) {
-            if (!(k in obj2)) {
-                melded[k] = obj1[k];
-            }
-        }
-        for (let k of keys2) {
-            if ((k in obj1)) {
-                if (obj1[k] === Symbol.for('delete') || obj2[k] === Symbol.for('delete')) {
-                    continue;
-                }
-                melded[k] = reduce(obj1[k], obj2[k], k);
-            }
-            else {
-                melded[k] = obj2[k];
-            }
-        }
-        return melded;
-    };
+const base_1 = __webpack_require__(0);
+const offering_1 = __webpack_require__(18);
+class AccessContact extends base_1.BasicContact {
+    constructor(accessPolicy) {
+        super();
+        this.accessPolicy = accessPolicy;
+        this.symmetric = false;
+        this.invertable = true;
+    }
+    set(target, property, value, reciever) {
+        target[property] = value;
+        return true;
+    }
+    get(target, property, reciever) {
+        let gotten = target[property];
+        return gotten;
+    }
+    invert() {
+        return super.invert();
+    }
+    createPartner() {
+        return new offering_1.OfferContact(this.accessPolicy);
+    }
+    setAccessed(accessed) {
+        this.proxy = new Proxy(accessed, this);
+    }
+    inject(context, key) {
+        context[key] = this.proxy;
+    }
+    ;
+    retract(context, key) {
+        delete context[key];
+    }
+    ;
 }
-exports.meld = meld;
-function mask(reduce) {
-    return function (obj1, obj2) {
-        let masked = {};
-        let keys1 = Object.keys(obj1);
-        for (var k of keys1) {
-            if (k in obj2) {
-                if (obj1[k] === Symbol.for('delete') || obj2[k] === Symbol.for('delete')) {
-                    continue;
-                }
-                masked[k] = reduce(obj1[k], obj2[k], k);
-            }
-        }
-        return masked;
-    };
-}
-exports.mask = mask;
-function invert(negate) {
-    return function (obj) {
-        let inverted = {};
-        let keys = Object.keys(obj);
-        for (let k of keys) {
-            inverted[k] = negate(obj[k], k);
-        }
-        return inverted;
-    };
-}
-exports.invert = invert;
+exports.AccessContact = AccessContact;
 
 
 /***/ }),
@@ -1395,79 +1513,12 @@ exports.invert = invert;
 
 "use strict";
 
+function __export(m) {
+    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
+}
 Object.defineProperty(exports, "__esModule", { value: true });
-function isSubset(seq1, seq2) {
-    for (let k of seq1) {
-        if (seq2.indexOf(k) === -1) {
-            return false;
-        }
-    }
-    return true;
-}
-exports.isSubset = isSubset;
-function isSetEqual(seq1, seq2) {
-    return isSubset(seq1, seq2) && isSubset(seq2, seq1);
-}
-exports.isSetEqual = isSetEqual;
-function weightedChoice(weights) {
-    var sum = weights.reduce(function (a, b) { return a + b; }, 0);
-    var cdfArray = weights.reduce(function (coll, next, i) {
-        var v = (coll[i - 1] || 0) + next / sum;
-        return coll.concat([v]);
-    }, []);
-    var r = Math.random();
-    var i = 0;
-    while (i < weights.length - 1 && r > cdfArray[i]) {
-        i++;
-    }
-    return i;
-}
-exports.weightedChoice = weightedChoice;
-function range(...args) {
-    var beg, end, step;
-    switch (args.length) {
-        case 1: {
-            end = args[0];
-            beg = 0;
-            step = 1;
-            break;
-        }
-        case 2: {
-            end = args[1];
-            beg = args[0];
-            step = 1;
-            break;
-        }
-        case 3: {
-            end = args[2];
-            beg = args[0];
-            step = args[1];
-            break;
-        }
-        default: {
-            end = 0;
-            beg = 0;
-            step = 1;
-            break;
-        }
-    }
-    var rng = [];
-    if (beg > end && step < 0) {
-        for (let i = beg; i > end; i += step) {
-            rng.push(i);
-        }
-    }
-    else if (beg < end && step > 0) {
-        for (let i = beg; i < end; i += step) {
-            rng.push(i);
-        }
-    }
-    else {
-        throw new Error("invalid range parameters");
-    }
-    return rng;
-}
-exports.range = range;
+__export(__webpack_require__(16));
+__export(__webpack_require__(18));
 
 
 /***/ }),
@@ -1477,192 +1528,40 @@ exports.range = range;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const checks_1 = __webpack_require__(1);
-const transforms_1 = __webpack_require__(19);
-function dumpToDepthF(maxdepth, indentSym = "  ") {
-    let recur = function (depth, indentation, item) {
-        let outstr = "\n";
-        if (checks_1.isPrimative(item) || depth <= 0) {
-            outstr = String(item);
+const base_1 = __webpack_require__(0);
+const access_1 = __webpack_require__(16);
+class OfferContact extends base_1.BasicContact {
+    constructor(accessPolicy) {
+        super();
+        this.accessPolicy = accessPolicy;
+        this.symmetric = false;
+        this.invertable = true;
+        this.linkedAccess = {};
+    }
+    invert() {
+        return super.invert();
+    }
+    createPartner() {
+        let partner = new access_1.AccessContact(this.accessPolicy);
+        partner.setAccessed(this.linkedAccess);
+        return partner;
+    }
+    inject(context, key) {
+        this.hidden = true;
+        if (key === undefined) {
+            this.partner.setAccessed(context);
         }
-        else if (item instanceof Array) {
-            outstr = "[\n";
-            item.forEach((item) => { outstr += (indentation + recur(depth - 1, indentation + indentSym, item) + '\n'); });
-            outstr += "\n]";
+        else {
+            this.partner.setAccessed(context[key]);
         }
-        else if (item instanceof Object) {
-            outstr = "{\n";
-            for (let k in item) {
-                outstr += (indentation + indentSym + k + ': ' + recur(depth - 1, indentation + indentSym, item[k]) + '\n');
-            }
-            outstr += "\n" + indentation + "}";
-        }
-        return outstr;
-    };
-    return (x) => {
-        return recur(maxdepth, "", x);
-    };
+    }
+    ;
+    retract(context, key) {
+        this.partner.setAccessed(this.linkedAccess);
+    }
+    ;
 }
-exports.dumpToDepthF = dumpToDepthF;
-class JungleError {
-    constructor(message, fileName, lineNumber) {
-        this.message = message;
-        this.fileName = fileName;
-        this.lineNumber = lineNumber;
-        var err = new Error();
-    }
-}
-exports.JungleError = JungleError;
-class Crumb {
-    constructor(label) {
-        this.label = label;
-        this.raised = false;
-        if (label in Crumb.customOptions) {
-            this.setOptions(Crumb.customOptions[label]);
-        }
-        else {
-            this.options = Crumb.defaultOptions;
-        }
-    }
-    setOptions(optionObj) {
-        if (Crumb.defaultOptions.debug instanceof Array) {
-            if (Crumb.defaultOptions.debug.indexOf(this.label) !== -1) {
-                (Crumb.customOptions[this.label] = Crumb.customOptions[this.label] || { debug: true }).debug = true;
-            }
-        }
-        this.options = transforms_1.melder(Crumb.defaultOptions, optionObj);
-    }
-    drop(label) {
-        let crumb = new Crumb(label);
-        crumb.previous = this;
-        return crumb;
-    }
-    excursion(label, callback) {
-        let catcher = this.drop(label)
-            .catch((crumback) => {
-            this.raise(`
-Excursion Failure: ${crumback.message}
-
-While Attempting:
-${crumback.describe()}
-`);
-        });
-        try {
-            callback(catcher);
-        }
-        catch (e) {
-            catcher.raise(e);
-        }
-    }
-    at(position) {
-        if (this.options.debug) {
-            this.position = (this.options.at || this.options.format)(position);
-            if (this.options.log !== undefined) {
-                let logmsg = (`[${this.label}] at: ${this.position}`);
-                this.options.log.log(logmsg);
-            }
-        }
-        return this;
-    }
-    in(location) {
-        if (this.options.debug) {
-            this.location = (this.options.within || this.options.format)(location);
-            if (this.options.log !== undefined) {
-                let logmsg = (`[${this.label}] in: ${this.location}`);
-                this.options.log.log(logmsg);
-            }
-        }
-        return this;
-    }
-    as(situation) {
-        if (this.options.debug) {
-            this.situation = (this.options.as || this.options.format)(situation);
-            if (this.options.log !== undefined) {
-                let logmsg = (`[${this.label}] as: ${this.situation}`);
-                this.options.log.log(logmsg);
-            }
-        }
-        return this;
-    }
-    with(data) {
-        if (this.options.debug) {
-            this.data = (this.options.with || this.options.format)(data);
-            if (this.options.log !== undefined) {
-                let logmsg = (`[${this.label}] with: ${this.data}`);
-                this.options.log.log(logmsg);
-            }
-        }
-        return this;
-    }
-    dump() {
-        return `
-${this.message !== undefined ? `Error: ${this.message}` : ''}
-
-Crumb Trail(most recent at top):
-${this.traceback(this.options.traceDepth)}\
-        `;
-    }
-    traceback(depth = -1) {
-        if (this.previous !== undefined && (depth > 0 || depth === -1)) {
-            return `
-${this.describe()}
-|
-${this.previous.traceback(depth === -1 ? depth : depth - 1)}
-`;
-        }
-        else {
-            return this.describe();
-        }
-    }
-    describe() {
-        return `\
-* ${this.options.header}: ${this.label}\
-${this.position !== undefined ? `\n|    at stage: ${this.position}` : ''}\
-${this.location !== undefined ? `\n|    within location: ${this.location}` : ''}\
-${this.situation !== undefined ? `\n|    as situation: ${this.situation}` : ''}\
-${this.data !== undefined ? `\n|    with data: ${this.data}` : ''}\
-`;
-    }
-    catch(callback) {
-        this.catchCallback = callback;
-        return this;
-    }
-    raise(error) {
-        if (this.catchCallback && !this.raised) {
-            this.raised = true;
-            this.message = error;
-            this.catchCallback(this);
-        }
-        else {
-            this.message = error;
-            throw this.dump();
-        }
-    }
-    deflect(exception) {
-        if (this.previous) {
-            this.previous.raise(`
-Deflected:
-from: ${this.label}
-message: ${exception}`);
-        }
-        else {
-            this.raise(exception);
-        }
-    }
-}
-Crumb.defaultOptions = {
-    header: "Crumb",
-    traceDepth: -1,
-    debug: false,
-    log: console,
-    format: (x) => { return x; },
-    with: undefined,
-    at: undefined,
-    within: undefined,
-    as: undefined,
-};
-Crumb.customOptions = {};
-exports.Crumb = Crumb;
+exports.OfferContact = OfferContact;
 
 
 /***/ }),
@@ -1672,201 +1571,72 @@ exports.Crumb = Crumb;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const checks_1 = __webpack_require__(1);
-const typesplit_1 = __webpack_require__(3);
-function identity(x) {
-    return x;
-}
-exports.identity = identity;
-function collapseValues(obj) {
-    if (!checks_1.isVanillaTree(obj)) {
-        throw new Error("cant collapse circular structure");
+const base_1 = __webpack_require__(0);
+const Debug = __webpack_require__(13);
+var ExchangeTypes;
+(function (ExchangeTypes) {
+    ExchangeTypes[ExchangeTypes["Hook"] = 0] = "Hook";
+    ExchangeTypes[ExchangeTypes["Value"] = 1] = "Value";
+})(ExchangeTypes = exports.ExchangeTypes || (exports.ExchangeTypes = {}));
+class CallExchange extends base_1.BasicContact {
+    constructor(spec) {
+        super();
+        this.spec = spec;
+        this.symmetric = true;
+        this.invertable = true;
     }
-    let valArr = [];
-    function nodeProcess(node) {
-        valArr.push(node);
+    put(data, debug) {
+        let crumb = debug.drop("CallExchange")
+            .with(data);
+        return this.partner.emit(data, crumb);
     }
-    function recursor(node) {
-        typesplit_1.typeCaseSplitF(recursor, recursor, nodeProcess)(node);
+    ;
+    invert() {
+        let inverted = super.invert();
+        return inverted;
     }
-    recursor(obj);
-    return valArr;
-}
-exports.collapseValues = collapseValues;
-function translator(node, translation) {
-    var translated;
-    if (typeof (node) == "object" && !(node instanceof Array)) {
-        translated = {};
-        for (var k in node) {
-            var tval = translation[k];
-            if (typeof (tval) == "function") {
-                translated[tval.name] = tval(node[k]);
-            }
-            if (typeof (tval) == "string") {
-                translated[tval] = node[k];
-            }
-            else if (tval != undefined) {
-                translated[k] = translator(node[k], tval);
-            }
-            else {
-                translated[k] = node[k];
-            }
+    createPartner() {
+        return new CallExchange(this.spec);
+    }
+    inject(context, key) {
+        if (this.spec.type === ExchangeTypes.Hook) {
+            context[key] = (data, tracking) => {
+                let crumb = tracking.drop("CallExchange")
+                    .with(data);
+                return this.put(data, crumb);
+            };
+            this.emit = this.spec.hook.bind(context);
         }
-        return translated;
-    }
-    else {
-        return node;
-    }
-}
-exports.translator = translator;
-function melder(node1, node2, merge = function (a, b) { return b; }, concatArrays = false, typeConstrain = true) {
-    if (node1 == undefined) {
-        return node2;
-    }
-    if (node2 == undefined) {
-        return node1;
-    }
-    if (typeConstrain && (typeof (node1) != typeof (node2))) {
-        var errmsg = "Expected melding nodes to be the same type \n" +
-            "type of node1: " + typeof (node1) + "\n" +
-            "type of node2: " + typeof (node2) + "\n";
-        throw TypeError(errmsg);
-    }
-    var melded;
-    if (node1 instanceof Array) {
-        return concatArrays ? node1.concat(node2) : merge(node1, node2);
-    }
-    else if (typeof (node1) == 'object') {
-        melded = {};
-        for (var k in node1) {
-            melded[k] = node1[k];
-        }
-        for (var q in node2) {
-            melded[q] = node2[q];
-        }
-        for (var k in node1) {
-            for (var q in node2) {
-                if (k == q) {
-                    if (node1[k] == node2[k]) {
-                        melded[k] = node1[k];
-                    }
-                    else {
-                        melded[k] = melder(node1[k], node2[k], merge, concatArrays);
-                    }
+        else if (this.spec.type === ExchangeTypes.Value) {
+            let stow = { value: this.spec.default };
+            Object.defineProperty(context, key, {
+                set: (value) => {
+                    stow.value = value;
+                    let crumb = new Debug.Crumb("CallExchange - SetReaction")
+                        .with(value);
+                    this.put(value, crumb);
+                },
+                get: () => {
+                    return stow.value;
                 }
-            }
-        }
-    }
-    else {
-        melded = merge(node1, node2);
-    }
-    return melded;
-}
-exports.melder = melder;
-function softAssoc(from, onto) {
-    for (var k in from) {
-        onto[k] = melder(from[k], onto[k]);
-    }
-}
-exports.softAssoc = softAssoc;
-function parassoc(from, onto) {
-    for (var k in from) {
-        onto[k] = melder(onto[k], from[k], function (a, b) {
-            return [a, b];
-        }, true);
-    }
-}
-exports.parassoc = parassoc;
-function assoc(from, onto) {
-    for (var k in from) {
-        onto[k] = melder(onto[k], from[k]);
-    }
-}
-exports.assoc = assoc;
-function deepCopy(thing) {
-    return typesplit_1.typeCaseSplitF(deepCopy, deepCopy)(thing);
-}
-exports.deepCopy = deepCopy;
-function applyMixins(derivedCtor, baseCtors) {
-    baseCtors.forEach(baseCtor => {
-        Object.getOwnPropertyNames(baseCtor.prototype).forEach(name => {
-            derivedCtor.prototype[name] = baseCtor.prototype[name];
-        });
-    });
-}
-exports.applyMixins = applyMixins;
-function objectArrayTranspose(objArr, key) {
-    var invert;
-    if (typeof (key) !== 'string') {
-        throw new Error("Value error: key must be string literal");
-    }
-    if (checks_1.isVanillaArray(objArr)) {
-        invert = {};
-        objArr.forEach(function (value, index) {
-            invert[value[key]] = value;
-        });
-    }
-    else if (checks_1.isVanillaObject(objArr)) {
-        invert = [];
-        for (var k in objArr) {
-            var obj = objArr[k];
-            obj[key] = k;
-            invert.push(obj);
-        }
-    }
-    else {
-        throw new Error("Value error: can only transpose object and array literals");
-    }
-}
-exports.objectArrayTranspose = objectArrayTranspose;
-function flattenObject(obj, depth = -1, values = []) {
-    for (let k in obj) {
-        let v = obj[k];
-        if (checks_1.isVanillaObject(v) && (depth >= 0 || depth >= -1)) {
-            flattenObject(v, depth - 1, values);
-        }
-        else {
-            values.push(v);
-        }
-    }
-    return values;
-}
-exports.flattenObject = flattenObject;
-function mapObject(obj, func) {
-    let mapped = {};
-    for (let k in obj) {
-        let v = obj[k];
-        mapped[k] = func(k, v);
-    }
-    return mapped;
-}
-exports.mapObject = mapObject;
-function projectObject(obj, keys) {
-    if (obj instanceof Object) {
-        let result;
-        if (obj instanceof Array) {
-            result = [];
-            for (let k of keys) {
-                if (k in obj) {
-                    result.push(obj[k]);
+            });
+            this.emit = (data, tracking) => {
+                tracking.drop("Deposit Value Grounding")
+                    .with(data);
+                if (!(stow.value = data)) {
+                    tracking.raise("Unable to set value");
                 }
-            }
+                return undefined;
+            };
         }
-        else {
-            result = {};
-            for (let k of keys) {
-                if (k in obj) {
-                    result[k] = obj[k];
-                }
-            }
-        }
-        return result;
     }
-    else {
-        return obj;
+    retract(context, key) {
+        delete context[key];
+        this.emit = undefined;
     }
+    ;
 }
-exports.projectObject = projectObject;
+exports.CallExchange = CallExchange;
 
 
 /***/ }),
@@ -1876,7 +1646,374 @@ exports.projectObject = projectObject;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const typesplit_1 = __webpack_require__(3);
+const designator_1 = __webpack_require__(14);
+var MembraneEvents;
+(function (MembraneEvents) {
+    MembraneEvents[MembraneEvents["AddContact"] = 0] = "AddContact";
+    MembraneEvents[MembraneEvents["AddMembrane"] = 1] = "AddMembrane";
+    MembraneEvents[MembraneEvents["RemoveContact"] = 2] = "RemoveContact";
+    MembraneEvents[MembraneEvents["RemoveMembrane"] = 3] = "RemoveMembrane";
+})(MembraneEvents = exports.MembraneEvents || (exports.MembraneEvents = {}));
+function DemuxWatchMethodsF(target) {
+    return (event, data, token) => {
+        switch (event) {
+            case (MembraneEvents.AddContact):
+                target.onAddContact(data, token);
+                break;
+            case (MembraneEvents.RemoveContact):
+                target.onRemoveContact(data, token);
+                break;
+            case (MembraneEvents.AddMembrane):
+                target.onAddMembrane(data, token);
+                break;
+            case (MembraneEvents.RemoveMembrane):
+                target.onRemoveMembrane(data, token);
+                break;
+        }
+    };
+}
+exports.DemuxWatchMethodsF = DemuxWatchMethodsF;
+class Section {
+    constructor() {
+        this.sections = [];
+        this.watches = [];
+    }
+    addSection(desexp, alias) {
+        let section = new Section();
+        if (this instanceof Membrane) {
+            section.source = this;
+        }
+        else {
+            section.source = this.source;
+        }
+        Object.defineProperty(section, 'subranes', {
+            get() {
+                return this.source.subranes;
+            }
+        });
+        Object.defineProperty(section, 'contacts', {
+            get() {
+                return this.source.contacts;
+            }
+        });
+        section.designator = new designator_1.Designator('subranes', 'contacts', desexp);
+        if (alias === undefined) {
+            this.sections[Symbol("anon")] = section;
+        }
+        else {
+            this.sections[alias] = section;
+        }
+        return section;
+    }
+    designate(dexp, flat = false) {
+        let desig = new designator_1.Designator('subranes', 'contacts', dexp);
+        for (let ik of Object.getOwnPropertySymbols(this.sections).concat(Object.keys(this.sections))) {
+            desig.screen(this.sections[ik].designator.expression);
+        }
+        return desig.scan(this, flat);
+    }
+    addWatch(watcher, alias) {
+        if (alias === undefined) {
+            this.watches[Symbol("anon")] = watcher;
+        }
+        else {
+            this.watches[alias] = watcher;
+        }
+    }
+    removeWatch(key) {
+        delete this.watches[key];
+    }
+    removeAllWatches() {
+        this.watches = [];
+    }
+    nextToken(token, key) {
+        if (!(typeof key === 'symbol')) {
+            if (token === undefined) {
+                return key;
+            }
+            else if (token.match(/^\:\w+$/)) {
+                return `${key}${token}`;
+            }
+            else {
+                return `${key}.${token}`;
+            }
+        }
+        else {
+            return token || "";
+        }
+    }
+    changeOccurred(event, subject, token) {
+        for (let skey of Object.getOwnPropertySymbols(this.sections).concat(Object.keys(this.sections))) {
+            let section = this.sections[skey];
+            if (section.designator === undefined || section.designator.matches(token)) {
+                section.changeOccurred(event, subject, this.nextToken(token, skey));
+                return;
+            }
+        }
+        for (let wKey of Object.getOwnPropertySymbols(this.watches).concat(Object.keys(this.watches))) {
+            let watch = this.watches[wKey];
+            if (watch.designator === undefined || watch.designator.matches(token)) {
+                watch.changeOccurred(event, subject, this.nextToken(token, wKey));
+            }
+        }
+    }
+}
+exports.Section = Section;
+class Membrane extends Section {
+    constructor() {
+        super();
+        this.contacts = {};
+        this.subranes = {};
+        this.notify = true;
+    }
+    invert() {
+        if (this.inverted === undefined) {
+            this.inverted = new Membrane();
+            this.inverted.inverted = this;
+            for (let rk in this.contacts) {
+                let contact = this.contacts[rk];
+                if (contact.invertable) {
+                    this.inverted.addContact(contact.invert(), rk);
+                }
+            }
+        }
+        return this.inverted;
+    }
+    addSubrane(membrane, label) {
+        this.subranes[label] = membrane;
+        membrane.addWatch(this, label);
+        this.notifyMembraneAdd(membrane, label);
+        let allNew = membrane.designate("**:*", false);
+        for (let token in allNew) {
+            this.changeOccurred(MembraneEvents.AddContact, allNew[token], this.nextToken(token, label));
+        }
+    }
+    removeSubrane(label) {
+        let removing = this.subranes[label];
+        delete this.subranes[label];
+        let allNew = removing.designate("**:*", false);
+        for (let token in allNew) {
+            this.changeOccurred(MembraneEvents.RemoveContact, allNew[token], this.nextToken(token, label));
+        }
+        this.notifyMembraneRemove(removing, label);
+        return removing;
+    }
+    addContact(contact, label) {
+        let existing = this.contacts[label];
+        if (existing !== undefined) {
+        }
+        else {
+            contact.attach(this, label);
+            this.contacts[label] = contact;
+            if (this.inverted !== undefined) {
+                if (contact.invertable && !contact.inverted) {
+                    let partner = contact.invert();
+                    this.inverted.addContact(partner, label);
+                    if (this.inverted.contacts[label] !== partner) {
+                    }
+                }
+            }
+            this.notifyContactAdd(contact, label);
+        }
+    }
+    removeContact(label) {
+        let removing = this.contacts[label];
+        if (removing !== undefined) {
+            removing.detach();
+            delete this.contacts[label];
+            if (this.inverted && removing.invertable) {
+                this.inverted.removeContact(label);
+            }
+            this.notifyContactRemove(removing, label);
+        }
+        return removing;
+    }
+    notifyContactAdd(contact, label) {
+        if (this.notify) {
+            this.changeOccurred(MembraneEvents.AddContact, contact, ":" + label);
+        }
+    }
+    notifyContactRemove(contact, label) {
+        if (this.notify) {
+            this.changeOccurred(MembraneEvents.RemoveContact, contact, ":" + label);
+        }
+    }
+    notifyMembraneAdd(membrane, token) {
+        if (this.notify) {
+            this.changeOccurred(MembraneEvents.AddMembrane, membrane, "" + token);
+        }
+    }
+    notifyMembraneRemove(membrane, token) {
+        if (this.notify) {
+            this.changeOccurred(MembraneEvents.RemoveMembrane, membrane, "" + token);
+        }
+    }
+}
+exports.Membrane = Membrane;
+
+
+/***/ }),
+/* 21 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+function __export(m) {
+    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
+}
+Object.defineProperty(exports, "__esModule", { value: true });
+__export(__webpack_require__(39));
+__export(__webpack_require__(22));
+__export(__webpack_require__(23));
+__export(__webpack_require__(37));
+__export(__webpack_require__(40));
+__export(__webpack_require__(38));
+
+
+/***/ }),
+/* 22 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const IO = __webpack_require__(2);
+const CS = __webpack_require__(9);
+class Cell extends CS.Composite {
+    constructor(spec) {
+        spec.domain = spec.domain;
+        spec.basis = 'cell';
+        super(spec);
+        this.nucleus = {};
+        this.shell = new IO.Membrane();
+        this.lining = this.shell.invert();
+    }
+    applyForm(form = {}) {
+        super.applyForm(form);
+        let media = {};
+        for (let mediumBasis of form.media || []) {
+            media[mediumBasis] = this.domain.recover({
+                basis: 'media:' + mediumBasis,
+                label: mediumBasis,
+                exposed: this.nucleus
+            });
+        }
+        let rules = form.mesh || {};
+        this.mesh = new IO.RuleMesh({
+            membrane: this.lining,
+            rules: rules,
+            media: media,
+            exposed: this.nucleus
+        });
+        if (form.sections !== undefined) {
+            for (let sectionkey in form.sections) {
+                this.parseSectionRule(form.sections[sectionkey]);
+            }
+        }
+    }
+    clearForm() {
+    }
+    parseSectionRule(rule) {
+        let match = rule.match(/^([\w\:\.\*]*)\s*to\s*(nucleus|shell)\s*(?:as\s*(\w*))?$/);
+        if (match) {
+            let desexp = match[1];
+            let target = match[2];
+            let alias = match[3];
+            let sect = this.lining.addSection(desexp);
+            if (target === 'shell') {
+                this.shell.addSubrane(sect, alias);
+            }
+            else if (target === 'nucleus') {
+                if (alias !== undefined) {
+                    this.nucleus[alias] = {};
+                }
+                sect.addWatch({
+                    changeOccurred: (event, subject, token) => {
+                        if (event == IO.MembraneEvents.AddContact) {
+                            let injectsite = alias === undefined ? this.nucleus : this.nucleus[alias];
+                            subject.inject(injectsite, token);
+                        }
+                    }
+                });
+            }
+        }
+        else {
+            throw `Invalid section expression: ${rule}`;
+        }
+    }
+    attach(anchor, alias) {
+        anchor.lining.addSubrane(this.shell, alias);
+    }
+    detach(anchor, alias) {
+        anchor.lining.removeSubrane(alias);
+    }
+    addConstruct(k, construct) {
+        super.addConstruct(k, construct);
+    }
+    addStrange(k, v) {
+        this.nucleus[k] = v;
+    }
+    addPrimative(k, v) {
+        this.nucleus[k] = v;
+    }
+    addObject(k, v) {
+        let construct = new Cell(v);
+        this.addConstruct(k, construct);
+    }
+}
+exports.Cell = Cell;
+
+
+/***/ }),
+/* 23 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const cell_1 = __webpack_require__(22);
+const common_1 = __webpack_require__(17);
+class DefaultCell extends cell_1.Cell {
+    constructor(object) {
+        super(object);
+    }
+    applyForm(form = {}) {
+        super.applyForm(form);
+        this.parseSectionRule('*:access to nucleus');
+        this.parseSectionRule('*.**:* to shell');
+        this.offering = new common_1.OfferContact(form.accessPolicy);
+        this.accessor = this.offering.invert();
+        this.offering.inject(this, 'nucleus');
+        this.lining.addContact(this.offering, 'access');
+        this.shell.addContact(this.accessor, 'access');
+    }
+    clearForm() {
+        this.offering.retract(this.nucleus, undefined);
+        this.lining.removeContact('access');
+        super.clearForm();
+    }
+    attach(anchor, key) {
+        if (anchor.nucleus) {
+            this.accessor.inject(anchor.nucleus, key);
+        }
+        anchor.lining.addSubrane(this.shell, key);
+    }
+    detach(anchor, key) {
+        this.accessor.retract(anchor.nucleus, key);
+        anchor.lining.removeSubrane(key);
+    }
+}
+exports.DefaultCell = DefaultCell;
+
+
+/***/ }),
+/* 24 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const typesplit_1 = __webpack_require__(8);
 var JResultNatures;
 (function (JResultNatures) {
     JResultNatures[JResultNatures["Single"] = 0] = "Single";
@@ -1886,6 +2023,21 @@ var JResultNatures;
     JResultNatures[JResultNatures["Uninferred"] = 4] = "Uninferred";
 })(JResultNatures || (JResultNatures = {}));
 const WAITING = "WAIT";
+function dezalgo(junction, fallback) {
+    if (junction instanceof Junction) {
+        let zalgo = junction.realize();
+        if (zalgo instanceof Junction) {
+            return fallback;
+        }
+        else {
+            return zalgo;
+        }
+    }
+    else {
+        return junction;
+    }
+}
+exports.dezalgo = dezalgo;
 class Junction {
     constructor() {
         this.leashed = [];
@@ -2131,504 +2283,84 @@ exports.Junction = Junction;
 
 
 /***/ }),
-/* 21 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const designator_1 = __webpack_require__(10);
-var MembraneEvents;
-(function (MembraneEvents) {
-    MembraneEvents[MembraneEvents["AddContact"] = 0] = "AddContact";
-    MembraneEvents[MembraneEvents["AddMembrane"] = 1] = "AddMembrane";
-    MembraneEvents[MembraneEvents["RemoveContact"] = 2] = "RemoveContact";
-    MembraneEvents[MembraneEvents["RemoveMembrane"] = 3] = "RemoveMembrane";
-})(MembraneEvents = exports.MembraneEvents || (exports.MembraneEvents = {}));
-function DemuxWatchMethodsF(target) {
-    return (event, data, token) => {
-        switch (event) {
-            case (MembraneEvents.AddContact):
-                target.onAddContact(data, token);
-                break;
-            case (MembraneEvents.RemoveContact):
-                target.onRemoveContact(data, token);
-                break;
-            case (MembraneEvents.AddMembrane):
-                target.onAddMembrane(data, token);
-                break;
-            case (MembraneEvents.RemoveMembrane):
-                target.onRemoveMembrane(data, token);
-                break;
-        }
-    };
-}
-exports.DemuxWatchMethodsF = DemuxWatchMethodsF;
-class Section {
-    constructor() {
-        this.sections = [];
-        this.watches = [];
-    }
-    addSection(desexp, alias) {
-        let section = new Section();
-        if (this instanceof Membrane) {
-            section.source = this;
-        }
-        else {
-            section.source = this.source;
-        }
-        Object.defineProperty(section, 'subranes', {
-            get() {
-                return this.source.subranes;
-            }
-        });
-        Object.defineProperty(section, 'contacts', {
-            get() {
-                return this.source.contacts;
-            }
-        });
-        section.designator = new designator_1.Designator('subranes', 'contacts', desexp);
-        if (alias === undefined) {
-            this.sections[Symbol("anon")] = section;
-        }
-        else {
-            this.sections[alias] = section;
-        }
-        return section;
-    }
-    designate(dexp, flat = false) {
-        let desig = new designator_1.Designator('subranes', 'contacts', dexp);
-        for (let ik of Object.getOwnPropertySymbols(this.sections).concat(Object.keys(this.sections))) {
-            desig.screen(this.sections[ik].designator.expression);
-        }
-        return desig.scan(this, flat);
-    }
-    addWatch(watcher, alias) {
-        if (alias === undefined) {
-            this.watches[Symbol("anon")] = watcher;
-        }
-        else {
-            this.watches[alias] = watcher;
-        }
-    }
-    removeWatch(key) {
-        delete this.watches[key];
-    }
-    removeAllWatches() {
-        this.watches = [];
-    }
-    nextToken(token, key) {
-        if (!(typeof key === 'symbol')) {
-            if (token === undefined) {
-                return key;
-            }
-            else if (token.match(/^\:\w+$/)) {
-                return `${key}${token}`;
-            }
-            else {
-                return `${key}.${token}`;
-            }
-        }
-        else {
-            return token || "";
-        }
-    }
-    changeOccurred(event, subject, token) {
-        for (let skey of Object.getOwnPropertySymbols(this.sections).concat(Object.keys(this.sections))) {
-            let section = this.sections[skey];
-            if (section.designator === undefined || section.designator.matches(token)) {
-                section.changeOccurred(event, subject, this.nextToken(token, skey));
-                return;
-            }
-        }
-        for (let wKey of Object.getOwnPropertySymbols(this.watches).concat(Object.keys(this.watches))) {
-            let watch = this.watches[wKey];
-            if (watch.designator === undefined || watch.designator.matches(token)) {
-                watch.changeOccurred(event, subject, this.nextToken(token, wKey));
-            }
-        }
-    }
-}
-exports.Section = Section;
-class Membrane extends Section {
-    constructor() {
-        super();
-        this.contacts = {};
-        this.subranes = {};
-        this.notify = true;
-    }
-    invert() {
-        if (this.inverted === undefined) {
-            this.inverted = new Membrane();
-            this.inverted.inverted = this;
-            for (let rk in this.contacts) {
-                let contact = this.contacts[rk];
-                if (contact.invertable) {
-                    this.inverted.addContact(contact.invert(), rk);
-                }
-            }
-        }
-        return this.inverted;
-    }
-    addSubrane(membrane, label) {
-        this.subranes[label] = membrane;
-        membrane.addWatch(this, label);
-        this.notifyMembraneAdd(membrane, label);
-        let allNew = membrane.designate("**:*", false);
-        for (let token in allNew) {
-            this.changeOccurred(MembraneEvents.AddContact, allNew[token], this.nextToken(token, label));
-        }
-    }
-    removeSubrane(label) {
-        let removing = this.subranes[label];
-        delete this.subranes[label];
-        let allNew = removing.designate("**:*", false);
-        for (let token in allNew) {
-            this.changeOccurred(MembraneEvents.RemoveContact, allNew[token], this.nextToken(token, label));
-        }
-        this.notifyMembraneRemove(removing, label);
-        return removing;
-    }
-    addContact(contact, label) {
-        let existing = this.contacts[label];
-        if (existing !== undefined) {
-        }
-        else {
-            contact.attach(this, label);
-            this.contacts[label] = contact;
-            if (this.inverted !== undefined) {
-                if (contact.invertable && !contact.inverted) {
-                    let partner = contact.invert();
-                    this.inverted.addContact(partner, label);
-                    if (this.inverted.contacts[label] !== partner) {
-                    }
-                }
-            }
-            this.notifyContactAdd(contact, label);
-        }
-    }
-    removeContact(label) {
-        let removing = this.contacts[label];
-        if (removing !== undefined) {
-            removing.detach();
-            delete this.contacts[label];
-            if (this.inverted && removing.invertable) {
-                this.inverted.removeContact(label);
-            }
-            this.notifyContactRemove(removing, label);
-        }
-        return removing;
-    }
-    notifyContactAdd(contact, label) {
-        if (this.notify) {
-            this.changeOccurred(MembraneEvents.AddContact, contact, ":" + label);
-        }
-    }
-    notifyContactRemove(contact, label) {
-        if (this.notify) {
-            this.changeOccurred(MembraneEvents.RemoveContact, contact, ":" + label);
-        }
-    }
-    notifyMembraneAdd(membrane, token) {
-        if (this.notify) {
-            this.changeOccurred(MembraneEvents.AddMembrane, membrane, "" + token);
-        }
-    }
-    notifyMembraneRemove(membrane, token) {
-        if (this.notify) {
-            this.changeOccurred(MembraneEvents.RemoveMembrane, membrane, "" + token);
-        }
-    }
-}
-exports.Membrane = Membrane;
-
-
-/***/ }),
-/* 22 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const base_1 = __webpack_require__(0);
-function regexifyDesignationTerm(term) {
-    if (term == '*') {
-        return /.*/;
-    }
-    else if (term == '**') {
-        return '**';
-    }
-    else {
-        return new RegExp(`\^${term}\$`);
-    }
-}
-exports.regexifyDesignationTerm = regexifyDesignationTerm;
-function parseDesignatorString(desigstr) {
-    let colonSplit = desigstr.match(/^((?:(?:\w+|\*{1,2})(?:\.(?:\w+|\*{1,2}))*))?\:(\w+|\*|\$)$/);
-    if (colonSplit === null) {
-    }
-    else {
-        var [total, chain, contact] = colonSplit;
-    }
-    let subranedesig = chain ? chain.split(/\./) : [];
-    subranedesig = subranedesig.map((value, index) => {
-        return regexifyDesignationTerm(value);
-    });
-    return {
-        mDesignators: subranedesig,
-        cDesignator: regexifyDesignationTerm(contact)
-    };
-}
-exports.parseDesignatorString = parseDesignatorString;
-function designatorToRegex(desigstr) {
-    let colonSplit = desigstr.match(/^((?:(?:\w+|\*{1,2})(?:\.(?:\w+|\*{1,2}))*))?\:(\w+|\*|\$)$/);
-    if (colonSplit === null) {
-    }
-    else {
-        var [total, chain, contact] = colonSplit;
-    }
-    let subranedesig = chain ? chain.split(/\./) : [];
-    let regex = '';
-    for (let i = 0; i < subranedesig.length; i++) {
-        let term = subranedesig[i], first = i === 0, last = i === subranedesig.length - 1;
-        if (term == '*') {
-            regex += first ? '^(\\w+)' : '\.\\w+';
-        }
-        else if (term == '**') {
-            regex += first ? '^(\\w+(\.\\w+)*?)?' : '(\.\\w+)*';
-        }
-        else {
-            regex += first ? `^${term}` : `\.${term}`;
-        }
-    }
-    regex += `:${contact == '*' ? '(\\w+)' : contact}$`;
-    return new RegExp(regex);
-}
-exports.designatorToRegex = designatorToRegex;
-function tokenDesignatedBy(token, designator) {
-    let [match, allSubs, contact] = token.match(/^((?:(?:\w+)(?:\.(?:\w+))*))?\:(\w+)$/);
-    let splitSubs = allSubs ? allSubs.split(/\./) : [];
-    for (let i = 0; i < splitSubs.length; i++) {
-        if (!matchDesignationTerm(splitSubs[i], designator.mDesignators[i])) {
-            return false;
-        }
-    }
-    if (!matchDesignationTerm(contact, designator.cDesignator)) {
-        return false;
-    }
-    return true;
-}
-exports.tokenDesignatedBy = tokenDesignatedBy;
-function matchDesignationTerm(target, term) {
-    if (term instanceof Function) {
-        return term(target);
-    }
-    else if (term instanceof RegExp) {
-        return target.match(term);
-    }
-    else {
-        return target.match(regexifyDesignationTerm(term));
-    }
-}
-exports.matchDesignationTerm = matchDesignationTerm;
-class BasicDesignable {
-    constructor(groupName, finalName) {
-        this.groupName = groupName;
-        this.finalName = finalName;
-    }
-    treeDesignate({ mDesignators, cDesignator }) {
-        let collected = {}, glob = false, terminal = false;
-        if (mDesignators.length > 0) {
-            let deref;
-            if (mDesignators[0] == '**') {
-                glob = true;
-                if (mDesignators.length == 1) {
-                    terminal = true;
-                }
-                else {
-                    deref = mDesignators[1];
-                }
-            }
-            else {
-                deref = mDesignators[0];
-            }
-            let collectedSubs = [];
-            for (let mk in this[this.groupName]) {
-                if (!terminal &&
-                    ((deref instanceof Function && deref(this[this.groupName][mk], mk)) ||
-                        (deref instanceof RegExp && mk.match(deref)))) {
-                    collected[mk] = this[this.groupName][mk].treeDesignate({
-                        mDesignators: glob ? ([mDesignators[0]].concat(mDesignators.slice(2))) : (mDesignators.slice(1)),
-                        cDesignator: cDesignator
-                    });
-                }
-                else if (glob) {
-                    collected[mk] = this[this.groupName][mk].treeDesignate({
-                        mDesignators: mDesignators,
-                        cDesignator: cDesignator
-                    });
-                }
-            }
-        }
-        else {
-            terminal = true;
-        }
-        if (terminal) {
-            let bucket = this[this.finalName];
-            for (let contactlabel in bucket) {
-                let contact = bucket[contactlabel];
-                if (matchDesignationTerm(contactlabel, cDesignator)) {
-                    collected[contactlabel] = contact;
-                }
-            }
-        }
-        return collected;
-    }
-    flatDesignate(designator) {
-        let recur = function (dtree, collection) {
-            for (let k in dtree) {
-                let v = dtree[k];
-                if (v instanceof base_1.BasicContact) {
-                    collection.push(v);
-                }
-                else {
-                    recur(v, collection);
-                }
-            }
-            return collection;
-        };
-        return recur(this.treeDesignate(designator), []);
-    }
-    tokenDesignate(designator) {
-        let recur = function (dtree, tokens, chain) {
-            for (let k in dtree) {
-                let v = dtree[k];
-                if (v instanceof base_1.BasicContact) {
-                    tokens[chain + ':' + k] = v;
-                }
-                else {
-                    let lead = chain === '' ? chain : chain + '.';
-                    recur(v, tokens, lead + k);
-                }
-            }
-            return tokens;
-        };
-        return recur(this.treeDesignate(designator), {}, '');
-    }
-    designate(str, tokenize = true) {
-        if (tokenize) {
-            return this.tokenDesignate(parseDesignatorString(str));
-        }
-        else {
-            return this.flatDesignate(parseDesignatorString(str));
-        }
-    }
-}
-exports.BasicDesignable = BasicDesignable;
-
-
-/***/ }),
-/* 23 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-function __export(m) {
-    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
-}
-Object.defineProperty(exports, "__esModule", { value: true });
-__export(__webpack_require__(24));
-__export(__webpack_require__(25));
-
-
-/***/ }),
-/* 24 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const base_1 = __webpack_require__(0);
-const offering_1 = __webpack_require__(25);
-class AccessContact extends base_1.BasicContact {
-    constructor(accessPolicy) {
-        super();
-        this.accessPolicy = accessPolicy;
-        this.symmetric = false;
-        this.invertable = true;
-        this.handler = {
-            set(target, property, value, reciever) {
-                target[property] = value;
-                return true;
-            },
-            get(target, property, reciever) {
-                let gotten = target[property];
-                return gotten;
-            }
-        };
-    }
-    invert() {
-        return super.invert();
-    }
-    createPartner() {
-        return new offering_1.OfferContact(this.accessPolicy);
-    }
-    setAccessed(accessed) {
-        this.proxy = new Proxy(accessed, this.handler);
-    }
-    inject(context, key) {
-        context[key] = this.proxy;
-    }
-    ;
-    retract(context, key) {
-        delete context[key];
-    }
-    ;
-}
-exports.AccessContact = AccessContact;
-
-
-/***/ }),
 /* 25 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const base_1 = __webpack_require__(0);
-const access_1 = __webpack_require__(24);
-class OfferContact extends base_1.BasicContact {
-    constructor(accessPolicy) {
-        super();
-        this.accessPolicy = accessPolicy;
-        this.symmetric = false;
-        this.invertable = true;
-        this.linkedAccess = {};
-    }
-    invert() {
-        return super.invert();
-    }
-    createPartner() {
-        let partner = new access_1.AccessContact(this.accessPolicy);
-        partner.setAccessed(this.linkedAccess);
-        return partner;
-    }
-    inject(context, key) {
-        this.hidden = true;
-        if (key === undefined) {
-            this.partner.setAccessed(context);
-        }
-        else {
-            this.partner.setAccessed(context[key]);
+function isSubset(seq1, seq2) {
+    for (let k of seq1) {
+        if (seq2.indexOf(k) === -1) {
+            return false;
         }
     }
-    ;
-    retract(context, key) {
-        this.partner.setAccessed(this.linkedAccess);
-    }
-    ;
+    return true;
 }
-exports.OfferContact = OfferContact;
+exports.isSubset = isSubset;
+function isSetEqual(seq1, seq2) {
+    return isSubset(seq1, seq2) && isSubset(seq2, seq1);
+}
+exports.isSetEqual = isSetEqual;
+function weightedChoice(weights) {
+    var sum = weights.reduce(function (a, b) { return a + b; }, 0);
+    var cdfArray = weights.reduce(function (coll, next, i) {
+        var v = (coll[i - 1] || 0) + next / sum;
+        return coll.concat([v]);
+    }, []);
+    var r = Math.random();
+    var i = 0;
+    while (i < weights.length - 1 && r > cdfArray[i]) {
+        i++;
+    }
+    return i;
+}
+exports.weightedChoice = weightedChoice;
+function range(...args) {
+    var beg, end, step;
+    switch (args.length) {
+        case 1: {
+            end = args[0];
+            beg = 0;
+            step = 1;
+            break;
+        }
+        case 2: {
+            end = args[1];
+            beg = args[0];
+            step = 1;
+            break;
+        }
+        case 3: {
+            end = args[2];
+            beg = args[0];
+            step = args[1];
+            break;
+        }
+        default: {
+            end = 0;
+            beg = 0;
+            step = 1;
+            break;
+        }
+    }
+    var rng = [];
+    if (beg > end && step < 0) {
+        for (let i = beg; i > end; i += step) {
+            rng.push(i);
+        }
+    }
+    else if (beg < end && step > 0) {
+        for (let i = beg; i < end; i += step) {
+            rng.push(i);
+        }
+    }
+    else {
+        throw new Error("invalid range parameters");
+    }
+    return rng;
+}
+exports.range = range;
 
 
 /***/ }),
@@ -2637,16 +2369,59 @@ exports.OfferContact = OfferContact;
 
 "use strict";
 
-function __export(m) {
-    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
-}
 Object.defineProperty(exports, "__esModule", { value: true });
-__export(__webpack_require__(36));
-__export(__webpack_require__(27));
-__export(__webpack_require__(28));
-__export(__webpack_require__(38));
-__export(__webpack_require__(39));
-__export(__webpack_require__(40));
+function meld(reduce) {
+    return function (obj1, obj2) {
+        let melded = {};
+        let keys1 = Object.keys(obj1);
+        let keys2 = Object.keys(obj2);
+        for (let k of keys1) {
+            if (!(k in obj2)) {
+                melded[k] = obj1[k];
+            }
+        }
+        for (let k of keys2) {
+            if ((k in obj1)) {
+                if (obj1[k] === Symbol.for('delete') || obj2[k] === Symbol.for('delete')) {
+                    continue;
+                }
+                melded[k] = reduce(obj1[k], obj2[k], k);
+            }
+            else {
+                melded[k] = obj2[k];
+            }
+        }
+        return melded;
+    };
+}
+exports.meld = meld;
+function mask(reduce) {
+    return function (obj1, obj2) {
+        let masked = {};
+        let keys1 = Object.keys(obj1);
+        for (var k of keys1) {
+            if (k in obj2) {
+                if (obj1[k] === Symbol.for('delete') || obj2[k] === Symbol.for('delete')) {
+                    continue;
+                }
+                masked[k] = reduce(obj1[k], obj2[k], k);
+            }
+        }
+        return masked;
+    };
+}
+exports.mask = mask;
+function invert(negate) {
+    return function (obj) {
+        let inverted = {};
+        let keys = Object.keys(obj);
+        for (let k of keys) {
+            inverted[k] = negate(obj[k], k);
+        }
+        return inverted;
+    };
+}
+exports.invert = invert;
 
 
 /***/ }),
@@ -2656,96 +2431,41 @@ __export(__webpack_require__(40));
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const IO = __webpack_require__(4);
-const CS = __webpack_require__(14);
-class Cell extends CS.Composite {
-    constructor(spec) {
-        spec.domain = spec.domain;
-        spec.basis = 'cell';
-        super(spec);
-        this.nucleus = {};
-        this.shell = new IO.Membrane();
-        this.lining = this.shell.invert();
+var map;
+(function (map) {
+    function identity(x) {
+        return x;
     }
-    applyForm(form = {}) {
-        super.applyForm(form);
-        let media = {};
-        for (let mediumBasis of form.media || []) {
-            media[mediumBasis] = this.domain.recover({
-                basis: 'media:' + mediumBasis,
-                label: mediumBasis,
-                exposed: this.nucleus
-            });
-        }
-        let rules = form.mesh || {};
-        this.mesh = new IO.RuleMesh({
-            membrane: this.lining,
-            rules: rules,
-            media: media,
-            exposed: this.nucleus
-        });
-        this.anchor = {
-            nucleus: this.nucleus,
-            lining: this.lining,
-            mesh: this.mesh
-        };
-        if (form.sections !== undefined) {
-            for (let sectionkey in form.sections) {
-                this.parseSectionRule(form.sections[sectionkey]);
-            }
-        }
+    map.identity = identity;
+})(map = exports.map || (exports.map = {}));
+var reduce;
+(function (reduce) {
+    function latest(a, b) {
+        return b;
     }
-    clearForm() {
+    reduce.latest = latest;
+})(reduce = exports.reduce || (exports.reduce = {}));
+var scan;
+(function (scan) {
+    function enumerable(obj) {
+        return Object.keys(obj);
     }
-    parseSectionRule(rule) {
-        let match = rule.match(/^([\w\:\.\*]*)\s*to\s*(nucleus|shell)\s*(?:as\s*(\w*))?$/);
-        if (match) {
-            let desexp = match[1];
-            let target = match[2];
-            let alias = match[3];
-            let sect = this.lining.addSection(desexp);
-            if (target === 'shell') {
-                this.shell.addSubrane(sect, alias);
-            }
-            else if (target === 'nucleus') {
-                if (alias !== undefined) {
-                    this.nucleus[alias] = {};
-                }
-                sect.addWatch({
-                    changeOccurred: (event, subject, token) => {
-                        if (event == IO.MembraneEvents.AddContact) {
-                            let injectsite = alias === undefined ? this.nucleus : this.nucleus[alias];
-                            subject.inject(injectsite, token);
-                        }
-                    }
-                });
-            }
-        }
-        else {
-            throw `Invalid section expression: ${rule}`;
-        }
+    scan.enumerable = enumerable;
+})(scan = exports.scan || (exports.scan = {}));
+var terminate;
+(function (terminate) {
+    function isPrimative(test, obj2, key) {
+        return !(test instanceof Object);
     }
-    attach(anchor, alias) {
-        anchor.lining.addSubrane(this.shell, alias);
+    terminate.isPrimative = isPrimative;
+})(terminate = exports.terminate || (exports.terminate = {}));
+var negate;
+(function (negate) {
+    function existential(some) {
+        return Symbol.for("delete");
     }
-    detach(anchor, alias) {
-        anchor.lining.removeSubrane(alias);
-    }
-    addConstruct(k, construct) {
-        super.addConstruct(k, construct);
-    }
-    addStrange(k, v) {
-        this.nucleus[k] = v;
-    }
-    addPrimative(k, v) {
-        this.nucleus[k] = v;
-    }
-    addObject(k, v) {
-        let construct = new Cell(v);
-        this.addConstruct(k, construct);
-    }
-}
-exports.Cell = Cell;
+    negate.existential = existential;
+})(negate = exports.negate || (exports.negate = {}));
 
 
 /***/ }),
@@ -2755,39 +2475,201 @@ exports.Cell = Cell;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const cell_1 = __webpack_require__(27);
-const common_1 = __webpack_require__(23);
-class DefaultCell extends cell_1.Cell {
-    constructor(object) {
-        super(object);
+const checks_1 = __webpack_require__(6);
+const typesplit_1 = __webpack_require__(8);
+function identity(x) {
+    return x;
+}
+exports.identity = identity;
+function collapseValues(obj) {
+    if (!checks_1.isVanillaTree(obj)) {
+        throw new Error("cant collapse circular structure");
     }
-    applyForm(form = {}) {
-        super.applyForm(form);
-        this.parseSectionRule('*:access to nucleus');
-        this.parseSectionRule('*.**:* to shell');
-        this.offering = new common_1.OfferContact(form.accessPolicy);
-        this.accessor = this.offering.invert();
-        this.offering.inject(this, 'nucleus');
-        this.lining.addContact(this.offering, 'access');
-        this.shell.addContact(this.accessor, 'access');
+    let valArr = [];
+    function nodeProcess(node) {
+        valArr.push(node);
     }
-    clearForm() {
-        this.offering.retract(this.nucleus, undefined);
-        this.lining.removeContact('access');
-        super.clearForm();
+    function recursor(node) {
+        typesplit_1.typeCaseSplitF(recursor, recursor, nodeProcess)(node);
     }
-    attach(anchor, key) {
-        if (anchor.nucleus) {
-            this.accessor.inject(anchor.nucleus, key);
+    recursor(obj);
+    return valArr;
+}
+exports.collapseValues = collapseValues;
+function translator(node, translation) {
+    var translated;
+    if (typeof (node) == "object" && !(node instanceof Array)) {
+        translated = {};
+        for (var k in node) {
+            var tval = translation[k];
+            if (typeof (tval) == "function") {
+                translated[tval.name] = tval(node[k]);
+            }
+            if (typeof (tval) == "string") {
+                translated[tval] = node[k];
+            }
+            else if (tval != undefined) {
+                translated[k] = translator(node[k], tval);
+            }
+            else {
+                translated[k] = node[k];
+            }
         }
-        anchor.lining.addSubrane(this.shell, key);
+        return translated;
     }
-    detach(anchor, key) {
-        this.accessor.retract(anchor.nucleus, key);
-        anchor.lining.removeSubrane(key);
+    else {
+        return node;
     }
 }
-exports.DefaultCell = DefaultCell;
+exports.translator = translator;
+function melder(node1, node2, merge = function (a, b) { return b; }, concatArrays = false, typeConstrain = true) {
+    if (node1 == undefined) {
+        return node2;
+    }
+    if (node2 == undefined) {
+        return node1;
+    }
+    if (typeConstrain && (typeof (node1) != typeof (node2))) {
+        var errmsg = "Expected melding nodes to be the same type \n" +
+            "type of node1: " + typeof (node1) + "\n" +
+            "type of node2: " + typeof (node2) + "\n";
+        throw TypeError(errmsg);
+    }
+    var melded;
+    if (node1 instanceof Array) {
+        return concatArrays ? node1.concat(node2) : merge(node1, node2);
+    }
+    else if (typeof (node1) == 'object') {
+        melded = {};
+        for (var k in node1) {
+            melded[k] = node1[k];
+        }
+        for (var q in node2) {
+            melded[q] = node2[q];
+        }
+        for (var k in node1) {
+            for (var q in node2) {
+                if (k == q) {
+                    if (node1[k] == node2[k]) {
+                        melded[k] = node1[k];
+                    }
+                    else {
+                        melded[k] = melder(node1[k], node2[k], merge, concatArrays);
+                    }
+                }
+            }
+        }
+    }
+    else {
+        melded = merge(node1, node2);
+    }
+    return melded;
+}
+exports.melder = melder;
+function softAssoc(from, onto) {
+    for (var k in from) {
+        onto[k] = melder(from[k], onto[k]);
+    }
+}
+exports.softAssoc = softAssoc;
+function parassoc(from, onto) {
+    for (var k in from) {
+        onto[k] = melder(onto[k], from[k], function (a, b) {
+            return [a, b];
+        }, true);
+    }
+}
+exports.parassoc = parassoc;
+function assoc(from, onto) {
+    for (var k in from) {
+        onto[k] = melder(onto[k], from[k]);
+    }
+}
+exports.assoc = assoc;
+function deepCopy(thing) {
+    return typesplit_1.typeCaseSplitF(deepCopy, deepCopy)(thing);
+}
+exports.deepCopy = deepCopy;
+function applyMixins(derivedCtor, baseCtors) {
+    baseCtors.forEach(baseCtor => {
+        Object.getOwnPropertyNames(baseCtor.prototype).forEach(name => {
+            derivedCtor.prototype[name] = baseCtor.prototype[name];
+        });
+    });
+}
+exports.applyMixins = applyMixins;
+function objectArrayTranspose(objArr, key) {
+    var invert;
+    if (typeof (key) !== 'string') {
+        throw new Error("Value error: key must be string literal");
+    }
+    if (checks_1.isVanillaArray(objArr)) {
+        invert = {};
+        objArr.forEach(function (value, index) {
+            invert[value[key]] = value;
+        });
+    }
+    else if (checks_1.isVanillaObject(objArr)) {
+        invert = [];
+        for (var k in objArr) {
+            var obj = objArr[k];
+            obj[key] = k;
+            invert.push(obj);
+        }
+    }
+    else {
+        throw new Error("Value error: can only transpose object and array literals");
+    }
+}
+exports.objectArrayTranspose = objectArrayTranspose;
+function flattenObject(obj, depth = -1, values = []) {
+    for (let k in obj) {
+        let v = obj[k];
+        if (checks_1.isVanillaObject(v) && (depth >= 0 || depth >= -1)) {
+            flattenObject(v, depth - 1, values);
+        }
+        else {
+            values.push(v);
+        }
+    }
+    return values;
+}
+exports.flattenObject = flattenObject;
+function mapObject(obj, func) {
+    let mapped = {};
+    for (let k in obj) {
+        let v = obj[k];
+        mapped[k] = func(k, v);
+    }
+    return mapped;
+}
+exports.mapObject = mapObject;
+function projectObject(obj, keys) {
+    if (obj instanceof Object) {
+        let result;
+        if (obj instanceof Array) {
+            result = [];
+            for (let k of keys) {
+                if (k in obj) {
+                    result.push(obj[k]);
+                }
+            }
+        }
+        else {
+            result = {};
+            for (let k of keys) {
+                if (k in obj) {
+                    result[k] = obj[k];
+                }
+            }
+        }
+        return result;
+    }
+    else {
+        return obj;
+    }
+}
+exports.projectObject = projectObject;
 
 
 /***/ }),
@@ -2796,84 +2678,28 @@ exports.DefaultCell = DefaultCell;
 
 "use strict";
 
-const Jungle = __webpack_require__(30);
-class DomCell extends Jungle.Cell {
-    constructor(stuff) {
-        super(stuff);
-        stuff.domain = 'dom';
-    }
-    applyForm(form) {
-        super.applyForm(form);
-        let wrapped = document.createElement(form.elem);
-        wrapped.
-            this.elem = wrapped;
-        this.addStrange('elem', wrapped);
-    }
-    attach(cell, key) {
-        super.attach(cell, key);
-        if (cell.elem instanceof HTMLElement) {
-            cell.elem.appendChild(this.elem);
-        }
-    }
-    detach(cell, key) {
-        if (cell.elem instanceof HTMLElement) {
-            cell.elem.removeChild(this.elem);
-        }
-    }
-    addPrimative(value, key) {
-        this.elem.setAttribute(key, value);
-        super.addPrimative(value, key);
-    }
-}
-exports.DomCell = DomCell;
-Jungle.Core.addSubdomain('dom', new Jungle.Domain({
-    object: DomCell
-}));
-let view = new DomCell({
-    form: {
-        elem: 'div',
-        class: 'base-level'
-    },
-    anon: [
-        {
-            form: {
-                elem: 'p',
-                class: 'content'
-            }
-        }
-    ]
-});
-view.prime();
-window.onload = () => {
-    document.getElementById('content').appendChild(view.elem);
-};
-
-
-/***/ }),
-/* 30 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
 function __export(m) {
     for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
 }
 Object.defineProperty(exports, "__esModule", { value: true });
-const domain_1 = __webpack_require__(8);
-const _Util = __webpack_require__(2);
-const _IO = __webpack_require__(4);
-const _TRT = __webpack_require__(26);
-const _CST = __webpack_require__(14);
+const domain_1 = __webpack_require__(11);
+const _Util = __webpack_require__(5);
+const _IO = __webpack_require__(2);
+const _TRT = __webpack_require__(21);
+const _CST = __webpack_require__(9);
 exports.Util = _Util;
 exports.IO = _IO;
 exports.TRT = _TRT;
 exports.CST = _CST;
-__export(__webpack_require__(14));
-__export(__webpack_require__(26));
+__export(__webpack_require__(5));
+__export(__webpack_require__(2));
+__export(__webpack_require__(9));
+__export(__webpack_require__(21));
 exports.Core = new domain_1.Domain({
     media: new domain_1.Domain({
         direct: _IO.DirectMedium,
-        distribute: _IO.DistributeMedium
+        distribute: _IO.DistributeMedium,
+        exchange: _IO.ExchangeMedium
     }),
     cell: {
         nature: exports.TRT.Cell,
@@ -2896,15 +2722,706 @@ exports.CST.Construct.DefaultDomain = exports.Core;
 
 
 /***/ }),
+/* 30 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+const Jungle = __webpack_require__(29);
+class DomCell extends Jungle.Cell {
+    constructor(stuff) {
+        super(stuff);
+        this.cache.domain = DOMdomain;
+    }
+    applyForm(form) {
+        super.applyForm(form);
+        let wrapped = document.createElement(form.elem);
+        this.elem = wrapped;
+        this.addStrange('elem', wrapped);
+    }
+    attach(cell, key) {
+        super.attach(cell, key);
+        console.log("attaching dom child", this.elem);
+        if (cell.elem instanceof HTMLElement) {
+            cell.elem.appendChild(this.elem);
+        }
+    }
+    detach(cell, key) {
+        if (cell.elem instanceof HTMLElement) {
+            cell.elem.removeChild(this.elem);
+        }
+        super.detach(cell, this.alias);
+    }
+    addPrimative(key, value) {
+        if (!isNaN(key) && typeof (value) == 'string') {
+            this.elem.innerHTML += value;
+        }
+        else {
+            this.elem.setAttribute(key, value);
+        }
+        super.addPrimative(value, key);
+    }
+}
+exports.DomCell = DomCell;
+const DOMdomain = new Jungle.Domain({
+    object: DomCell
+});
+Jungle.Core.addSubdomain('dom', DOMdomain);
+let view = new DomCell({
+    form: {
+        elem: 'div',
+        class: 'base-level'
+    },
+    anon: [
+        "Hello World",
+        {
+            form: {
+                elem: 'p',
+                class: 'stuff'
+            },
+            anon: [
+                "Inner HTML"
+            ]
+        }
+    ]
+});
+view.prime();
+window.onload = () => {
+    document.getElementById('content').appendChild(view.elem);
+};
+
+
+/***/ }),
 /* 31 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const typesplit_1 = __webpack_require__(3);
-const checks_1 = __webpack_require__(1);
-const math_1 = __webpack_require__(17);
+const construct_1 = __webpack_require__(10);
+const all_1 = __webpack_require__(5);
+class Composite extends construct_1.Construct {
+    constructor(spec) {
+        super(spec);
+        this.keywords = { basis: null, domain: null, form: null, anon: null };
+        this.subconstructs = [];
+    }
+    prime(domain) {
+        super.prime(domain);
+        for (let k in this.cache) {
+            if (!(k in this.keywords)) {
+                let v = this.cache[k];
+                this.add(v, k);
+            }
+        }
+        if (this.cache.anon !== undefined) {
+            for (let i = 0; i < this.cache.anon.length; i++) {
+                this.add(this.cache.anon[i]);
+            }
+        }
+        if (this.beginTractor) {
+            this.beginTractor.call(this.nucleus);
+        }
+    }
+    applyForm(form) {
+        super.applyForm(form);
+        this.beginTractor = form.begin;
+        this.endTractor = form.end;
+    }
+    clearForm() {
+        this.beginTractor = undefined;
+        this.endTractor = undefined;
+        super.clearForm();
+    }
+    add(v, key) {
+        let k = key === undefined ? this.subconstructs.length++ : key;
+        if (this.alive) {
+            if (all_1.isPrimative(v)) {
+                this.addPrimative(k, v);
+            }
+            else if (v instanceof construct_1.Construct) {
+                let spec = v.extract();
+                let recovered = this.domain.recover(spec);
+                this.addConstruct(k, recovered);
+            }
+            else if (all_1.isVanillaObject(v)) {
+                if ('basis' in v) {
+                    let recovered = this.domain.recover(v);
+                    this.addConstruct(k, recovered);
+                }
+                else {
+                    v.basis = 'object';
+                    let recovered = this.domain.recover(v);
+                    this.addConstruct(k, recovered);
+                }
+            }
+            else if (all_1.isVanillaArray(v)) {
+                let patch = {
+                    basis: 'array',
+                    anon: v
+                };
+                let recovered = this.domain.recover(patch);
+                this.addConstruct(k, recovered);
+            }
+            else {
+                this.addStrange(k, v);
+            }
+        }
+        else {
+            this.cache[k] = v;
+        }
+    }
+    addConstruct(k, construct) {
+        construct.prime(this.domain);
+        this.subconstructs[k] = construct;
+        construct.attach(this, k);
+    }
+    addStrange(k, v) {
+    }
+    addPrimative(k, v) {
+    }
+    remove(k) {
+        let removing = this.subconstructs[k];
+        if (removing !== undefined) {
+            removing.detach(this, k);
+            let final = removing.dispose();
+            delete this.subconstructs[k];
+            return final;
+        }
+    }
+    dispose() {
+        if (this.endTractor) {
+            this.endTractor.call(this.nucleus);
+        }
+        for (let key in this.subconstructs) {
+            let construct = this.subconstructs[key];
+            construct.detach(this, key);
+            construct.dispose();
+        }
+        this.clearForm();
+        super.dispose();
+    }
+    extract() {
+        if (this.alive) {
+            let extracted = {};
+            for (let key in this.subconstructs) {
+                let construct = this.subconstructs[key];
+                extracted[key] = construct.extract();
+            }
+            return all_1.B()
+                .init(this.cache)
+                .blend(extracted)
+                .dump();
+        }
+        else {
+            return this.cache;
+        }
+    }
+    patch(patch) {
+    }
+    extend(patch) {
+        let ext = all_1.B()
+            .init(this.extract())
+            .merge(patch)
+            .dump();
+        return this.domain.recover(ext);
+    }
+}
+exports.Composite = Composite;
+
+
+/***/ }),
+/* 32 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+function __export(m) {
+    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
+}
+Object.defineProperty(exports, "__esModule", { value: true });
+const callin_1 = __webpack_require__(3);
+const callout_1 = __webpack_require__(4);
+const interfaces_1 = __webpack_require__(1);
+__export(__webpack_require__(3));
+__export(__webpack_require__(4));
+__export(__webpack_require__(19));
+var interfaces_2 = __webpack_require__(1);
+exports.CALL_MODE = interfaces_2.CALL_MODE;
+function PushOutTrack() {
+    return new callout_1.CallOut({
+        label: "PushOut",
+        tracking: true,
+        syncOnly: false,
+        mode: interfaces_1.CALL_MODE.PUSH
+    });
+}
+exports.PushOutTrack = PushOutTrack;
+function PushInTrack() {
+    return new callin_1.CallIn({
+        label: "PushOut",
+        tracking: true,
+        syncOnly: false,
+        mode: interfaces_1.CALL_MODE.PUSH
+    });
+}
+exports.PushInTrack = PushInTrack;
+
+
+/***/ }),
+/* 33 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const medium_1 = __webpack_require__(7);
+const callout_1 = __webpack_require__(4);
+const callin_1 = __webpack_require__(3);
+class DirectMedium extends medium_1.BaseMedium {
+    constructor(spec) {
+        super(spec);
+        this.typeA = callout_1.CallOut;
+        this.typeB = callin_1.CallIn;
+        this.exclusive = true;
+        this.multiA = false,
+            this.multiB = false;
+    }
+    inductA(token, a) {
+    }
+    inductB(token, b) {
+    }
+    connect(link) {
+        link.contactA.emit = link.contactB.put;
+    }
+    disconnect(link) {
+        link.contactA.emit = undefined;
+        super.disconnect(link);
+    }
+}
+exports.DirectMedium = DirectMedium;
+medium_1.mediaConstructors['direct'] = DirectMedium;
+
+
+/***/ }),
+/* 34 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const medium_1 = __webpack_require__(7);
+const callout_1 = __webpack_require__(4);
+const callin_1 = __webpack_require__(3);
+class DistributeMedium extends medium_1.BaseMedium {
+    constructor(spec) {
+        super(spec);
+        this.typeA = callout_1.CallOut;
+        this.typeB = callin_1.CallIn;
+    }
+    distribute(sourceToken, data, crumb) {
+        for (let sinkToken in this.matrix.to[sourceToken]) {
+            let allFromA = this.matrix.to[sourceToken];
+            let sink = allFromA[sinkToken].contactB;
+            sink.put(data, crumb);
+        }
+    }
+    inductA(token, a) {
+        a.emit = this.distribute.bind(this, token);
+    }
+    inductB(token, b) {
+    }
+    connect(link) {
+    }
+    disconnect(link) {
+        super.disconnect(link);
+        link.contactA.emit = undefined;
+    }
+}
+exports.DistributeMedium = DistributeMedium;
+
+
+/***/ }),
+/* 35 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const medium_1 = __webpack_require__(7);
+const exchange_1 = __webpack_require__(19);
+class ExchangeMedium extends medium_1.BaseMedium {
+    constructor(spec) {
+        super(spec);
+        this.typeA = exchange_1.CallExchange;
+        this.typeB = exchange_1.CallExchange;
+    }
+    distribute(sourceToken, data, crumb) {
+        for (let sinkToken in this.matrix.to[sourceToken]) {
+            let allFromA = this.matrix.to[sourceToken];
+            let sink = allFromA[sinkToken].contactB;
+            sink.put(data, crumb);
+        }
+    }
+    inductA(token, a) {
+        a.emit = this.distribute.bind(this, token);
+    }
+    inductB(token, b) {
+    }
+    connect(link) {
+    }
+    disconnect(link) {
+        super.disconnect(link);
+        link.contactA.emit = undefined;
+    }
+}
+exports.ExchangeMedium = ExchangeMedium;
+
+
+/***/ }),
+/* 36 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const I = __webpack_require__(1);
+const membrane_1 = __webpack_require__(20);
+const designator_1 = __webpack_require__(14);
+class RuleMesh {
+    constructor(initArgs) {
+        this.changeOccurred = membrane_1.DemuxWatchMethodsF(this);
+        this.primary = initArgs.membrane;
+        this.primary.addWatch(this);
+        this.exposed = initArgs.exposed;
+        this.rules = {};
+        this.media = {};
+        this.locations = {};
+        for (let mediakey in initArgs.media) {
+            this.addMedium(mediakey, initArgs.media[mediakey]);
+        }
+        for (let mediakey in initArgs.rules) {
+            this.parseRules(initArgs.rules[mediakey], mediakey);
+        }
+    }
+    addMedium(key, medium) {
+        this.rules[key] = [];
+        this.media[key] = medium;
+    }
+    parseRules(ruleset, mediumkey) {
+        for (let link of ruleset) {
+            let linkIR = this.parseLink(link);
+            this.addRule(linkIR, mediumkey);
+        }
+    }
+    parseLink(link) {
+        let m = link.match(/^([\w\*\:\.]+)(\|?)(<?)([\+\-\!]?)([=\-])(>?)(\|?)([\w\*\:\.]+)/);
+        if (!m) {
+            throw new Error(`Unable to parse link description, expression ${link} did not match regex`);
+        }
+        ;
+        let [match, srcDesig, srcClose, backward, filter, matching, forward, snkClose, snkDesig] = m;
+        return {
+            designatorA: new designator_1.Designator('subranes', 'contacts', srcDesig),
+            designatorB: new designator_1.Designator('subranes', 'contacts', snkDesig),
+            closeA: srcClose === '|',
+            closeB: snkClose === '|',
+            forward: forward === '>',
+            backward: backward === '<',
+            matching: matching === "=",
+            propogation: filter !== '' ? { '+': I.LINK_FILTERS.PROCEED, '-': I.LINK_FILTERS.DECEED, '!': I.LINK_FILTERS.ELSEWHERE }[filter] : I.LINK_FILTERS.NONE
+        };
+    }
+    addRule(rule, mediumkey, ruleID) {
+        if (this.rules[mediumkey] === undefined) {
+            throw new Error(`Unable to create rule ${mediumkey} is not a recognised media type`);
+        }
+        if (typeof rule === 'string') {
+            this.addRule(this.parseLink(rule), mediumkey, ruleID);
+        }
+        else {
+            if (ruleID !== undefined) {
+                this.rules[mediumkey][ruleID] = rule;
+            }
+            else {
+                this.rules[mediumkey].push(rule);
+            }
+            let dA = rule.designatorA.tokenDesignate(this.primary);
+            let dB = rule.designatorB.tokenDesignate(this.primary);
+            this.balanceSquare(rule, dA, dB, mediumkey, false);
+        }
+    }
+    removeRule(mediumID, ruleID) {
+        let rule = this.rules[mediumID][ruleID];
+        if (rule === undefined) {
+            throw new Error(`The rule: ${rule} being removed does not exist in medium ${mediumID}`);
+        }
+        let dA = rule.designatorA.tokenDesignate(this.primary);
+        let dB = rule.designatorB.tokenDesignate(this.primary);
+        this.balanceSquare(rule, dA, dB, mediumID, true);
+    }
+    balanceSquare(rule, dA, dB, mediumkey, destructive) {
+        let op = destructive ? this.unsquare : this.square;
+        if (rule.forward) {
+            op.call(this, rule, dA, dB, mediumkey);
+        }
+        if (rule.backward) {
+            op.call(this, rule, dB, dA, mediumkey);
+        }
+    }
+    unsquare(rule, desigA, desigB, mediumkey) {
+        for (let tokenA in desigA) {
+            let contactA = desigA[tokenA];
+            for (let tokenB in desigB) {
+                let doSuppose = true;
+                let contactB = desigB[tokenB];
+                let medium = this.media[mediumkey];
+                let link = {
+                    tokenA: tokenA,
+                    tokenB: tokenB,
+                    contactA: contactA,
+                    contactB: contactB
+                };
+                if (medium.hasLink(link)) {
+                    medium.disconnect(link);
+                    if (!medium.hasToken(tokenA)) {
+                        delete this.locations[tokenA][mediumkey];
+                    }
+                    if (!medium.hasToken(tokenA)) {
+                        delete this.locations[tokenB][mediumkey];
+                    }
+                }
+            }
+        }
+    }
+    square(rule, desigA, desigB, mediumkey) {
+        let firstGlove = false;
+        for (let tokenA in desigA) {
+            let contactA = desigA[tokenA];
+            for (let tokenB in desigB) {
+                let doSuppose = true;
+                let contactB = desigB[tokenB];
+                let medium = this.media[mediumkey];
+                let link = {
+                    tokenA: tokenA,
+                    tokenB: tokenB,
+                    contactA: contactA,
+                    contactB: contactB
+                };
+                for (let mk in this.media) {
+                    let claimer = this.media[mk];
+                    if (mk !== mediumkey && claimer.hasClaim(link)) {
+                        throw new Error('Unable to suppose link when another medium has claimed the token');
+                    }
+                }
+                if (rule.matching) {
+                    let label1 = link.tokenA.match(/:(\w+)$/)[1];
+                    let label2 = link.tokenB.match(/:(\w+)$/)[1];
+                    if (label1 !== label2) {
+                        doSuppose = false;
+                    }
+                }
+                if (doSuppose) {
+                    if (medium.suppose(link)) {
+                        this.locations[tokenA] = this.locations[tokenA] || {};
+                        this.locations[tokenB] = this.locations[tokenB] || {};
+                        this.locations[tokenA][mediumkey] = medium;
+                        this.locations[tokenB][mediumkey] = medium;
+                    }
+                }
+            }
+        }
+    }
+    onAddContact(contact, token) {
+        for (let mediumkey in this.media) {
+            let medium = this.media[mediumkey];
+            let linkRules = this.rules[mediumkey];
+            for (let ruleID in linkRules) {
+                let rule = linkRules[ruleID];
+                let matchA = rule.designatorA.matches(token);
+                let matchB = rule.designatorB.matches(token);
+                if (matchA) {
+                    let dB = rule.designatorB.tokenDesignate(this.primary);
+                    let dA = {};
+                    dA[token] = contact;
+                    this.balanceSquare(rule, dA, dB, mediumkey, false);
+                }
+                if (matchB) {
+                    let dA = rule.designatorA.tokenDesignate(this.primary);
+                    let dB = {};
+                    dB[token] = contact;
+                    this.balanceSquare(rule, dA, dB, mediumkey, false);
+                }
+            }
+        }
+    }
+    onRemoveContact(contact, token) {
+        for (let loc in this.locations[token]) {
+            let location = this.locations[token][loc];
+            if (contact instanceof location.typeA) {
+                location.breakA(token, contact);
+            }
+            else if (contact instanceof location.typeB) {
+                location.breakB(token, contact);
+            }
+        }
+    }
+    onAddMembrane(membrane, token) {
+    }
+    onRemoveMembrane(membrane, token) {
+    }
+}
+exports.RuleMesh = RuleMesh;
+
+
+/***/ }),
+/* 37 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const default_1 = __webpack_require__(23);
+class ArrayCell extends default_1.DefaultCell {
+    constructor(spec) {
+        super(spec);
+        this.nucleus = [];
+    }
+}
+exports.ArrayCell = ArrayCell;
+
+
+/***/ }),
+/* 38 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const IO = __webpack_require__(2);
+const accessory_1 = __webpack_require__(12);
+class AccessHook extends accessory_1.CellAccessory {
+    constructor(spec) {
+        spec.basis = 'hook:access';
+        super(spec);
+        this.policy = spec.policy;
+    }
+    attach(anchor, k) {
+        super.attach(anchor, k);
+        this.contact = new IO.OfferContact();
+        anchor.lining.addContact(this.contact, k);
+        if (this.cache.expose && anchor.nucleus) {
+            this.contact.inject(anchor.nucleus, undefined);
+        }
+    }
+    detach() {
+        super.detach(this.host, this.alias);
+        this.contact.retract(this.host, this.alias);
+        this.host.lining.removeContact(this.alias);
+    }
+}
+exports.AccessHook = AccessHook;
+
+
+/***/ }),
+/* 39 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const IO = __webpack_require__(2);
+const all_1 = __webpack_require__(5);
+const accessory_1 = __webpack_require__(12);
+const interfaces_1 = __webpack_require__(1);
+class CallHook extends accessory_1.CellAccessory {
+    constructor(spec) {
+        spec.basis = 'hook:call';
+        super(spec);
+    }
+    attach(anchor, k) {
+        super.attach(anchor, k);
+        let contactargs = {
+            label: this.alias,
+            tracking: true,
+            hook: this.cache.hook,
+            syncOnly: this.cache.sync,
+            default: this.cache.default,
+            mode: {
+                'push': interfaces_1.CALL_MODE.PUSH,
+                'pull': (this.cache.sync) ? interfaces_1.CALL_MODE.GET : interfaces_1.CALL_MODE.REQUEST
+            }[this.cache.mode]
+        };
+        if (this.cache.hook === false) {
+        }
+        else if (this.cache.hook instanceof Function) {
+        }
+        else if (this.cache.hook === true) {
+        }
+        if (this.cache.sync) {
+        }
+        this.contact = this.cache.direction == "in" ? new IO.CallOut(contactargs) : new IO.CallIn(contactargs);
+        this.contact.inject(anchor.nucleus, k);
+        anchor.lining.addContact(this.contact, k);
+    }
+    detach() {
+        this.contact.retract(this.anchor, this.alias);
+        this.host.lining.removeContact(this.alias);
+    }
+    patch(patch) {
+        this.dispose();
+    }
+    extract() {
+        let cp = all_1.deepCopy(this.cache);
+        if (this.alive) {
+            cp.default = this.anchor.nucleus[this.alias];
+        }
+        return cp;
+    }
+}
+exports.CallHook = CallHook;
+
+
+/***/ }),
+/* 40 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const accessory_1 = __webpack_require__(12);
+class Connector extends accessory_1.CellAccessory {
+    constructor(spec) {
+        super(spec);
+    }
+    attach(anchor, label) {
+        super.attach(anchor, label);
+        if (!(this.cache.medium in anchor.mesh.media)) {
+            anchor.mesh.addMedium(this.cache.medium, this.domain.recover({
+                basis: 'media:' + this.cache.medium,
+                label: this.cache.medium,
+                exposed: this.nucleus
+            }));
+        }
+        anchor.mesh.addRule(this.cache.rule, this.cache.medium, label);
+    }
+    detach(anchor, label) {
+        anchor.mesh.removeRule(this.cache.medium, label);
+    }
+}
+exports.Connector = Connector;
+
+
+/***/ }),
+/* 41 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const typesplit_1 = __webpack_require__(8);
+const checks_1 = __webpack_require__(6);
+const math_1 = __webpack_require__(25);
 function B(crown = {}, form = {}) {
     return new Blender(crown, form);
 }
@@ -3038,567 +3555,6 @@ class Blender {
 }
 Blender.strictTypeReduce = false;
 exports.Blender = Blender;
-
-
-/***/ }),
-/* 32 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const designable_1 = __webpack_require__(22);
-class Visor extends designable_1.BasicDesignable {
-    constructor(target, designator) {
-        super('subranes', 'roles');
-        this.target = target;
-    }
-}
-exports.Visor = Visor;
-
-
-/***/ }),
-/* 33 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const I = __webpack_require__(5);
-const membrane_1 = __webpack_require__(21);
-const designator_1 = __webpack_require__(10);
-class RuleMesh {
-    constructor(initArgs) {
-        this.changeOccurred = membrane_1.DemuxWatchMethodsF(this);
-        this.primary = initArgs.membrane;
-        this.primary.addWatch(this);
-        this.exposed = initArgs.exposed;
-        this.rules = {};
-        this.media = {};
-        this.locations = {};
-        for (let mediakey in initArgs.media) {
-            this.addMedium(mediakey, initArgs.media[mediakey]);
-        }
-        for (let mediakey in initArgs.rules) {
-            this.parseRules(initArgs.rules[mediakey], mediakey);
-        }
-    }
-    addMedium(key, medium) {
-        this.rules[key] = [];
-        this.media[key] = medium;
-    }
-    parseRules(ruleset, mediumkey) {
-        for (let link of ruleset) {
-            let linkIR = this.parseLink(link);
-            this.addRule(linkIR, mediumkey);
-        }
-    }
-    parseLink(link) {
-        let m = link.match(/^([\w\*\:\.]+)(\|?)(<?)([\+\-\!]?)([=\-])(>?)(\|?)([\w\*\:\.]+)/);
-        if (!m) {
-            throw new Error(`Unable to parse link description, expression ${link} did not match regex`);
-        }
-        ;
-        let [match, srcDesig, srcClose, viceVersa, filter, matching, persistent, snkClose, snkDesig] = m;
-        return {
-            designatorA: new designator_1.Designator('subranes', 'contacts', srcDesig),
-            designatorB: new designator_1.Designator('subranes', 'contacts', snkDesig),
-            closeSource: srcClose === '|',
-            closeSink: snkClose === '|',
-            matching: matching === "=",
-            propogation: filter !== '' ? { '+': I.LINK_FILTERS.PROCEED, '-': I.LINK_FILTERS.DECEED, '!': I.LINK_FILTERS.ELSEWHERE }[filter] : I.LINK_FILTERS.NONE
-        };
-    }
-    addRule(rule, mediumkey, ruleID) {
-        if (this.rules[mediumkey] === undefined) {
-            throw new Error(`Unable to create rule ${mediumkey} is not a recognised media type`);
-        }
-        if (typeof rule === 'string') {
-            this.addRule(this.parseLink(rule), mediumkey, ruleID);
-        }
-        else {
-            if (ruleID !== undefined) {
-                this.rules[mediumkey][ruleID] = rule;
-            }
-            else {
-                this.rules[mediumkey].push(rule);
-            }
-            let dA = rule.designatorA.tokenDesignate(this.primary);
-            let dB = rule.designatorB.tokenDesignate(this.primary);
-            this.square(rule, dA, dB, mediumkey);
-        }
-    }
-    removeRule(mediumID, ruleID) {
-        let rule = this.rules[mediumID][ruleID];
-        if (rule === undefined) {
-            throw new Error(`The rule: ${rule} being removed does not exist in medium ${mediumID}`);
-        }
-        let dA = rule.designatorA.tokenDesignate(this.primary);
-        let dB = rule.designatorB.tokenDesignate(this.primary);
-        this.unsquare(rule, dA, dB, mediumID);
-    }
-    unsquare(rule, desigA, desigB, mediumkey) {
-        for (let tokenA in desigA) {
-            let contactA = desigA[tokenA];
-            for (let tokenB in desigB) {
-                let doSuppose = true;
-                let contactB = desigB[tokenB];
-                let medium = this.media[mediumkey];
-                let link = {
-                    tokenA: tokenA,
-                    tokenB: tokenB,
-                    contactA: contactA,
-                    contactB: contactB,
-                    directed: true
-                };
-                if (medium.hasLink(link)) {
-                    medium.disconnect(link);
-                    if (!medium.hasToken(tokenA)) {
-                        delete this.locations[tokenA][mediumkey];
-                    }
-                    if (!medium.hasToken(tokenA)) {
-                        delete this.locations[tokenB][mediumkey];
-                    }
-                }
-            }
-        }
-    }
-    square(rule, desigA, desigB, mediumkey) {
-        let firstGlove = false;
-        for (let tokenA in desigA) {
-            let contactA = desigA[tokenA];
-            for (let tokenB in desigB) {
-                let doSuppose = true;
-                let contactB = desigB[tokenB];
-                let medium = this.media[mediumkey];
-                let link = {
-                    tokenA: tokenA,
-                    tokenB: tokenB,
-                    contactA: contactA,
-                    contactB: contactB,
-                    directed: true
-                };
-                for (let mk in this.media) {
-                    let claimer = this.media[mk];
-                    if (mk !== mediumkey && claimer.hasClaim(link)) {
-                        throw new Error('Unable to suppose link when another medium has claimed the token');
-                    }
-                }
-                if (rule.matching) {
-                    let label1 = link.tokenA.match(/:(\w+)$/)[1];
-                    let label2 = link.tokenB.match(/:(\w+)$/)[1];
-                    if (label1 !== label2) {
-                        doSuppose = false;
-                    }
-                }
-                if (doSuppose) {
-                    if (medium.suppose(link)) {
-                        this.locations[tokenA] = this.locations[tokenA] || {};
-                        this.locations[tokenB] = this.locations[tokenB] || {};
-                        this.locations[tokenA][mediumkey] = medium;
-                        this.locations[tokenB][mediumkey] = medium;
-                    }
-                }
-            }
-        }
-    }
-    onAddContact(contact, token) {
-        for (let mediumkey in this.media) {
-            let medium = this.media[mediumkey];
-            let linkRules = this.rules[mediumkey];
-            if (contact instanceof medium.typeA) {
-                for (let ruleID in linkRules) {
-                    let rule = linkRules[ruleID];
-                    if (rule.designatorA.matches(token)) {
-                        let dB = rule.designatorB.tokenDesignate(this.primary);
-                        let dA = {};
-                        dA[token] = contact;
-                        this.square(rule, dA, dB, mediumkey);
-                    }
-                }
-            }
-            else if (contact instanceof medium.typeB) {
-                for (let ruleID in linkRules) {
-                    let rule = linkRules[ruleID];
-                    if (rule.designatorB.matches(token)) {
-                        let dA = rule.designatorA.tokenDesignate(this.primary);
-                        let dB = {};
-                        dB[token] = contact;
-                        this.square(rule, dA, dB, mediumkey);
-                    }
-                }
-            }
-            else {
-            }
-        }
-    }
-    onRemoveContact(contact, token) {
-        for (let loc in this.locations[token]) {
-            let location = this.locations[token][loc];
-            if (contact instanceof location.typeA) {
-                location.breakA(token, contact);
-            }
-            else if (contact instanceof location.typeB) {
-                location.breakB(token, contact);
-            }
-        }
-    }
-    onAddMembrane(membrane, token) {
-    }
-    onRemoveMembrane(membrane, token) {
-    }
-}
-exports.RuleMesh = RuleMesh;
-
-
-/***/ }),
-/* 34 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const medium_1 = __webpack_require__(11);
-const callout_1 = __webpack_require__(6);
-const callin_1 = __webpack_require__(7);
-class DistributeMedium extends medium_1.BaseMedium {
-    constructor(spec) {
-        super(spec);
-        this.typeA = callout_1.CallOut;
-        this.typeB = callin_1.CallIn;
-    }
-    distribute(sourceToken, data, crumb) {
-        for (let sinkToken in this.matrix.to[sourceToken]) {
-            let allFromA = this.matrix.to[sourceToken];
-            let sink = allFromA[sinkToken].contactB;
-            sink.put(data, crumb);
-        }
-    }
-    inductA(token, a) {
-        a.emit = this.distribute.bind(this, token);
-    }
-    inductB(token, b) {
-    }
-    connect(link) {
-    }
-    disconnect(link) {
-        super.disconnect(link);
-        link.contactA.emit = undefined;
-    }
-}
-exports.DistributeMedium = DistributeMedium;
-medium_1.mediaConstructors['distribute'] = DistributeMedium;
-
-
-/***/ }),
-/* 35 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const medium_1 = __webpack_require__(11);
-const callout_1 = __webpack_require__(6);
-const callin_1 = __webpack_require__(7);
-class DirectMedium extends medium_1.BaseMedium {
-    constructor(spec) {
-        super(spec);
-        this.typeA = callout_1.CallOut;
-        this.typeB = callin_1.CallIn;
-        this.exclusive = true;
-        this.multiA = false,
-            this.multiB = false;
-    }
-    inductA(token, a) {
-    }
-    inductB(token, b) {
-    }
-    connect(link) {
-        link.contactA.emit = link.contactB.put;
-    }
-    disconnect(link) {
-        link.contactA.emit = undefined;
-        super.disconnect(link);
-    }
-}
-exports.DirectMedium = DirectMedium;
-medium_1.mediaConstructors['direct'] = DirectMedium;
-
-
-/***/ }),
-/* 36 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const IO = __webpack_require__(4);
-const all_1 = __webpack_require__(2);
-const accessory_1 = __webpack_require__(12);
-const interfaces_1 = __webpack_require__(5);
-class CallHook extends accessory_1.CellAccessory {
-    constructor(spec) {
-        spec.basis = 'hook:call';
-        super(spec);
-    }
-    attach(anchor, k) {
-        super.attach(anchor, k);
-        let contactargs = {
-            label: this.alias,
-            tracking: true,
-            hook: this.cache.hook,
-            syncOnly: this.cache.sync,
-            default: this.cache.default,
-            mode: {
-                'push': interfaces_1.CALL_MODE.PUSH,
-                'pull': (this.cache.sync) ? interfaces_1.CALL_MODE.GET : interfaces_1.CALL_MODE.REQUEST
-            }[this.cache.mode]
-        };
-        if (this.cache.hook === false) {
-        }
-        else if (this.cache.hook instanceof Function) {
-        }
-        else if (this.cache.hook === true) {
-        }
-        if (this.cache.sync) {
-        }
-        this.contact = this.cache.direction == "in" ? new IO.CallOut(contactargs) : new IO.CallIn(contactargs);
-        this.contact.inject(anchor.nucleus, k);
-        anchor.lining.addContact(this.contact, k);
-    }
-    detach() {
-        this.contact.retract(this.anchor, this.alias);
-        this.anchor.lining.removeContact(this.alias);
-    }
-    patch(patch) {
-        this.dispose();
-    }
-    extract() {
-        let cp = all_1.deepCopy(this.cache);
-        if (this.alive) {
-            cp.default = this.anchor.nucleus[this.alias];
-        }
-        return cp;
-    }
-}
-exports.CallHook = CallHook;
-
-
-/***/ }),
-/* 37 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const construct_1 = __webpack_require__(13);
-const all_1 = __webpack_require__(2);
-class Composite extends construct_1.Construct {
-    constructor(spec) {
-        super(spec);
-        this.keywords = { basis: null, domain: null, form: null, anon: null };
-        this.subconstructs = [];
-    }
-    prime(domain) {
-        super.prime(domain);
-        for (let k in this.cache) {
-            if (!(k in this.keywords)) {
-                let v = this.cache[k];
-                this.add(v, k);
-            }
-        }
-        if (this.cache.anon !== undefined) {
-            for (let i = 0; i < this.cache.anon.length; i++) {
-                this.add(this.cache.anon[i]);
-            }
-        }
-        if (this.beginTractor) {
-            this.beginTractor.call(this.nucleus);
-        }
-    }
-    applyForm(form) {
-        super.applyForm(form);
-        this.beginTractor = form.begin;
-        this.endTractor = form.end;
-    }
-    clearForm() {
-        this.beginTractor = undefined;
-        this.endTractor = undefined;
-        super.clearForm();
-    }
-    add(v, key) {
-        let k = key === undefined ? this.subconstructs.length++ : key;
-        if (this.alive) {
-            if (all_1.isPrimative(v)) {
-                this.addPrimative(k, v);
-            }
-            else if (v instanceof construct_1.Construct) {
-                let spec = v.extract();
-                let recovered = this.domain.recover(spec);
-                this.addConstruct(k, recovered);
-            }
-            else if (all_1.isVanillaObject(v)) {
-                if ('basis' in v) {
-                    let recovered = this.domain.recover(v);
-                    this.addConstruct(k, recovered);
-                }
-                else {
-                    v.basis = 'object';
-                    let recovered = this.domain.recover(v);
-                    this.addConstruct(k, recovered);
-                }
-            }
-            else if (all_1.isVanillaArray(v)) {
-                let patch = {
-                    basis: 'array',
-                    anon: v
-                };
-                let recovered = this.domain.recover(patch);
-                this.addConstruct(k, recovered);
-            }
-            else {
-                this.addStrange(k, v);
-            }
-        }
-        else {
-            this.cache[k] = v;
-        }
-    }
-    addConstruct(k, construct) {
-        construct.prime(this.domain);
-        this.subconstructs[k] = construct;
-        construct.attach(this.anchor, k);
-    }
-    addStrange(k, v) {
-    }
-    addPrimative(k, v) {
-    }
-    remove(k) {
-        let removing = this.subconstructs[k];
-        if (removing !== undefined) {
-            removing.detach(this.anchor, k);
-            let final = removing.dispose();
-            delete this.subconstructs[k];
-            return final;
-        }
-    }
-    dispose() {
-        if (this.endTractor) {
-            this.endTractor.call(this.nucleus);
-        }
-        for (let key in this.subconstructs) {
-            let construct = this.subconstructs[key];
-            construct.detach(this.anchor, key);
-            construct.dispose();
-        }
-        this.clearForm();
-        super.dispose();
-    }
-    extract() {
-        if (this.alive) {
-            let extracted = {};
-            for (let key in this.subconstructs) {
-                let construct = this.subconstructs[key];
-                extracted[key] = construct.extract();
-            }
-            return all_1.B()
-                .init(this.cache)
-                .blend(extracted)
-                .dump();
-        }
-        else {
-            return this.cache;
-        }
-    }
-    patch(patch) {
-    }
-    extend(patch) {
-        let ext = all_1.B()
-            .init(this.extract())
-            .merge(patch)
-            .dump();
-        return this.domain.recover(ext);
-    }
-}
-exports.Composite = Composite;
-
-
-/***/ }),
-/* 38 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const default_1 = __webpack_require__(28);
-class ArrayCell extends default_1.DefaultCell {
-    constructor(spec) {
-        super(spec);
-        this.nucleus = [];
-    }
-}
-exports.ArrayCell = ArrayCell;
-
-
-/***/ }),
-/* 39 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const accessory_1 = __webpack_require__(12);
-class Connector extends accessory_1.CellAccessory {
-    constructor(spec) {
-        super(spec);
-    }
-    attach(anchor, label) {
-        console.log("create link", this.cache.rule);
-        if (!(this.cache.medium in anchor.mesh.media)) {
-            anchor.mesh.addMedium(this.cache.medium, this.domain.recover({
-                basis: 'media:' + this.cache.medium,
-                label: this.cache.medium,
-                exposed: this.nucleus
-            }));
-        }
-        anchor.mesh.addRule(this.cache.rule, this.cache.medium, label);
-    }
-    detach(anchor, label) {
-        anchor.mesh.removeRule(this.cache.medium, label);
-    }
-}
-exports.Connector = Connector;
-
-
-/***/ }),
-/* 40 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-const IO = __webpack_require__(4);
-const accessory_1 = __webpack_require__(12);
-class AccessHook extends accessory_1.CellAccessory {
-    constructor(spec) {
-        spec.basis = 'hook:access';
-        super(spec);
-        this.policy = spec.policy;
-    }
-    attach(anchor, k) {
-        super.attach(anchor, k);
-        this.contact = new IO.OfferContact();
-        anchor.lining.addContact(this.contact, k);
-        if (this.cache.expose && anchor.nucleus) {
-            this.contact.inject(anchor.nucleus, undefined);
-        }
-    }
-    detach() {
-        this.contact.retract(this.anchor, this.alias);
-        this.anchor.lining.removeContact(this.alias);
-    }
-}
-exports.AccessHook = AccessHook;
 
 
 /***/ })
